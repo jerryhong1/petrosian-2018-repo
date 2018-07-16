@@ -1,4 +1,6 @@
+# coding: utf-8
 #!/usr/bin/env python2
+from __future__ import division
 import numpy as np
 from scipy.integrate import quad
 import scipy.stats as stat
@@ -39,21 +41,29 @@ def magtoflux(m,f0):
 
 
 #calculate luminosity, minimum luminosity
-#k-corrections for richard et al. (2006)
+#k-corrections for richard et al. (2006), which are normalized at z = 2
 f = open('kcorr_quas.txt', 'r')
 K = []
 Z_k = []
 for line in f:
     Z_k.append(line[0:4])
     K.append(line[5:11])
+Z_k = [float(z) for z in Z_k]
+K = [float(k) for k in K]
 
-def k(z): #with sign convention: m_intrinsic = m_obs - K, and L = 4 pi d^2 f/k(z)
-    k = float(K[int(100 * z)])            
+#print K, Z_k
+alpha_opt = -0.5
+def k_opt(z): #with sign convention: m_intrinsic = m_obs - K, and L = 4 pi d^2 f/k(z)
+    k_avg = -2.5 * (1 + alpha_opt) * math.log10(1 + z) 
+    if (z > max(Z_k)):
+        k = k_avg  #assume no emission line effect
+    else:  
+        k = np.interp(z, Z_k, K) - 2.5 * (1 + alpha_opt) * math.log10(1 + 2)
     return 10**(-k / 2.5)
 
 #TODO: convert from one wavelength to another
 def lum(z, f):
-    kc = k(z)
+    kc = k_opt(z)
     return 4*math.pi*(d_lum(z)**2)*f/kc
 
 #fmin = 0.083e-26 #value for Singal et al. (2013)
@@ -91,14 +101,15 @@ def tau(Z, L, Lmin): #as defined in singal, petrosian papers in 2010s. tau = (âˆ
         j = [m for m in range(0, len(Z)) if (L[m] > Lmin[i] and Z[m] < Z[i])] #see petrosian
         j.append(i)
         L_ass = L[j]
+        if (len(j) == 1 or len(j) == 2): continue
         
         #determine rank
         L_rank = stat.rankdata(L_ass, 'max') #ranks of all luminosities
         rank = L_rank[-1] - 1 #determine rank of data point i
-        exp = 0.5 * (1 + len(L_ass))
+        exp = 0.5 * (len(L_ass))
         
         resid = resid + (rank - exp)
-        var = var + (1/12.0 * (-1 + len(L_ass)**2))
+        var = var + (1/12.0 * (-1 + (len(L_ass)-1)**2))
         
         #troubleshooting
         if(i % 500 == 0): print i, resid, var
@@ -117,12 +128,13 @@ def localize(Z, L, Lmin, k):
     Lmin_local = [Lmin[p] / g(Z[p],k) for p in range(0, len(L))]
     return np.array(L_local), np.array(Lmin_local)
 
-def tauvsk(K, data):
+#1-dimensinoal tau vs. k
+def tauvsk(Z, L, Lmin, K):
     s = []
     for k in K:
-        L_loc, Lmin_loc = localize(data[:,0], data[:,3], data[:,4], k)
+        L_loc, Lmin_loc = localize(Z, L, Lmin, k)
         print('\nk = ' +  str(k))
-        t = tau(data[:,0], L_loc, Lmin_loc)
+        t = tau(Z, L_loc, Lmin_loc)
         print ('\ntau = ' + str(t))
         s.append(t)
     return np.array(s)

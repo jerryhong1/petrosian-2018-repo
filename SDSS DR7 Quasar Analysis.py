@@ -1,15 +1,19 @@
- 
-# coding: utf-8
+ # coding: utf-8
 
 # In[1]: Pacakges
+from __future__ import division
 import numpy as np
-import scipy as sp
+#import scipy as sp
 from scipy.integrate import quad
 import scipy.stats as stat
 import math
 import matplotlib.pyplot as plt
 import pandas as pd
 from astropy.io import fits
+from matplotlib import rc
+rc('text', usetex=True)
+plt.rc('text', usetex=True)
+plt.rc('font', family='serif')
 
 # In[2]: upload .fit file
 dataset = fits.open('dr7qso.fit')
@@ -21,9 +25,9 @@ dataset.info()
 # In[4]: Access the data, get flux + redshift data
 
 quas = dataset[1]  #short for quasars
-#print quas.data[123] 
+#print quas.data[123] aze
 Z = quas.data['z'] #redshifts
-M = quas.data['ITMAG'] #"photometric" magnitudes in this band
+M = quas.data['IMAG'] #"photometric" magnitudes in this band
 #print 'magnitudes: ', M
 
 # In[5]: luminosity distance in cm. assume the standard ΛCDM cosmology: H0 = 71 km s−1 Mpc−1, ΩΛ = 0.7, and Ωm = 0.3
@@ -56,7 +60,7 @@ F = np.array(F)
 
 # In[8]: calculate luminosity, minimum luminosity
 
-#k-corrections for richard et al. (2006)
+#k-corrections for richard et al. (2006), which are normalized at z = 2
 f = open('kcorr_quas.txt', 'r')
 K = []
 Z_k = []
@@ -65,15 +69,14 @@ for line in f:
     K.append(line[5:11])
 
 #print K, Z_k
-
-def k(z): #with sign convention: m_intrinsic = m_obs - K, and L = 4 pi d^2 f/k(z)
-    k = float(K[int(100 * z)])            
+alpha = -0.5
+def KOpt(z): #with sign convention: m_intrinsic = m_obs - K, and L = 4 pi d^2 f/k(z)
+    k = float(K[int(100 * z)]) - 2.5 * (1 + alpha) * math.log10(1 + 2)
     return 10**(-k / 2.5)
 
 def lum(z, f):
-    alpha = -0.5 #for optical k-correction
 #    kc = (1+z)**alpha
-    kc = k(z)
+    kc = KOpt(z)
     
     #convert to 2500 Angstrom band
     lambda_i = 7625. 
@@ -147,7 +150,7 @@ print rank, exp, resid, var
 print resid/math.sqrt(var)
 print '\n'
 
-# In[13]: make sanity-checking plots
+# In[13]: make sanity-checking plot (log(L) vs. z)
 
 #L vs z
 plt.figure(1, figsize=(10,8))
@@ -155,27 +158,65 @@ plt.plot(data[:,0], np.log10(data[:,3]),'.', markersize=1, label="my data", colo
 plt.plot(data_trunc[:,0], np.log10(data_trunc[:,3]),'.', markersize=1, label="truncated", color='#40E0D0')
 
 #Lmin vs z
-zmin = data[:,0][np.argsort(data[:,0])]
-Lmin_sorted = data[:,4][np.argsort(data[:,0])]
-plt.plot(zmin, np.log10(Lmin_sorted),'-', markersize=3, label="min values", color='red')
+zmin = Z[np.argsort(Z)]
+Lmin_sorted = Lmin[np.argsort(Z)]
+plt.plot(zmin, np.log10(Lmin_sorted),'-', linewidth = 2, label="min values", color='red')
 
 #Lmax vs z
-
 Lmax = [lum(z, magtoflux(15)) for z in np.arange(0.01,5,0.05)]
 plt.plot(np.arange(0.01,5,0.05), np.log10(Lmax),'-', markersize=3, label="max values", color='red')
 
 #associated set (see above cell)
-plt.plot(Z_ass, np.log10(L_ass),'.', markersize=1, label="associated set for source", color='red')
-plt.plot(Z_ass[-1], np.log10(L_ass[-1]), '.', markersize=12, label="source", color = 'green')
+#plt.plot(Z_ass, np.log10(L_ass),'.', markersize=1, label="associated set for source", color='red')
+#plt.plot(Z_ass[-1], np.log10(L_ass[-1]), '.', markersize=12, label="source", color = 'green')
 
 #labeling
-plt.xlabel("z")
-plt.ylabel("log(L)")
-plt.title("log(L) at 2500 A vs. z for SDSS DR7 Quasar Set")
+plt.xlabel("$z$", fontsize = 14)
+plt.ylabel("$\log(L_{opt})$ (erg s$^{-1}$ Hz$^{-1}$)", fontsize = 14)
+plt.title("$\log(L)$ at 2500 A vs.\ $z$ for SDSS DR7 Quasar Set", fontsize = 16)
 #plt.legend(loc = "upper right")
 axes = plt.gca()
 axes.set_xlim([0,6])
 axes.set_ylim([29,33])
+plt.minorticks_on()
+plt.savefig("../figures/SDSSlogLz.png")
+plt.show()
+
+# In[13.5] Plot demonstrating associated set
+#L vs z
+plt.figure(4, figsize=(10,8))
+plt.plot(data[:,0], np.log10(data[:,3]),'.', markersize=1, label="my data", color='black')
+
+#Lmin vs z
+zmin = Z[np.argsort(Z)]
+Lmin_sorted = Lmin[np.argsort(Z)]
+plt.plot(zmin, np.log10(Lmin_sorted),'-', linewidth = 1, label="min values", color='red')
+
+#associated set (see above cell)
+plt.plot(Z_ass, np.log10(L_ass),'.', markersize=1, label="associated set for source", color='#900000')
+plt.plot(Z_ass[-1], np.log10(L_ass[-1]), '.', markersize=12, label="source", color = 'red')
+plt.plot([0,Z_ass[-1]], np.log10([data[i,4],data[i,4]]), linewidth = 1, color = 'red')
+plt.plot([Z_ass[-1],Z_ass[-1]], np.log10([data[i,4],1e50]), linewidth = 1, color = 'red')
+
+#labeling
+plt.xlabel("$z$", fontsize = 14)
+plt.ylabel("$\log(L_{opt})$ (erg s$^{-1}$ Hz$^{-1}$)", fontsize = 14)
+#plt.title("$\log(L)$ at 2500 A vs.\ $z$ for SDSS DR7 Quasar Set", fontsize = 16)
+#plt.legend(loc = "upper right")
+axes = plt.gca()
+axes.text(0.5*(Z_ass[-1]), 0.5*(np.log10(data[i,4]) + 33), 'Associated Set',
+        horizontalalignment='center',
+        verticalalignment='center', 
+        color = 'red', fontsize = 16)
+axes.text(Z_ass[-1] + 0.05, np.log10(data[i,3]), r'$\textbf{Source}$',
+        horizontalalignment='left',
+        verticalalignment='center', 
+        color = 'white', fontsize = 12)
+
+axes.set_xlim([0,5])
+axes.set_ylim([29,33])
+plt.minorticks_on()
+plt.savefig("../figures/AssociatedSet.png")
 plt.show()
 
 
@@ -187,9 +228,9 @@ def tau_(Z, L, Lmin): #as defined in singal, petrosian papers in 2010s. tau = (�
     for i in range(0, len(Z)):
         #create associated sets
         j = [m for m in range(0, len(Z)) if (L[m] > Lmin[i] and Z[m] < Z[i])] #see petrosian
-        if (len(j) == 1 or len(j) == 2): continue
         j.append(i)
         L_ass = L[j]
+        if (len(j) == 1 or len(j) == 2): continue
         
         #determine rank
         L_rank = stat.rankdata(L_ass, 'max') #ranks of all luminosities
@@ -274,7 +315,7 @@ def localize(Z, L, Lmin, k):
     return np.array(L_local), np.array(Lmin_local)
 
 #test with k = 3:
-k = 3.5
+k = 3.6
 L_local, Lmin_local = localize(data[:,0], data[:,3], data[:,4], k)
 print 'L_local:', L_local, '\n'
 
@@ -292,10 +333,9 @@ axes.set_ylim([29,33])
 #tau(data[:,0], L_local, Lmin_local)
 
 # In[16]: Choose a sample of data: 
-data_s = data[::10,:]
+data_s = data[::600,:]
 
 # In[17]: Iterate through k's to graph tau vs k:
-
 def tauvsk(K, data):
     s = []
     for k in K:
@@ -306,16 +346,33 @@ def tauvsk(K, data):
         s.append(t)
     return np.array(s)
 
-K = np.arange(3., 4., 0.1)
-Tau = tauvsk(K, data_s)
+#K = np.arange(3.3, 3.8, 0.1)
+K = np.array([3.6])
+Tau = tauvsk(K, data)
 # In[18]: Tau vs k plot:
+sigma = [-1, 1]
+K = np.load('data/sdss-k.npy')
+Tau = np.load('data/sdss-tau.npy')
+k = np.interp(0, -Tau, K)
+#tau vs k_opt
 plt.figure(3)
-plt.title("tau vs k")
+plt.title(r"$\tau$ vs $k_{opt}$ (SDSS Optical Data)", fontsize = 14)
 plt.plot(K, Tau)
 axes = plt.gca()
 axes.set_xlim([min(K), max(K)])
 axes.set_ylim([-3,3])
+plt.xlabel(r"$k_{opt}$", fontsize = 14)
+plt.ylabel(r"$\tau$", fontsize = 14)
+
 plt.plot(np.arange(0, 10), np.zeros(10), color = 'black')
 plt.plot(np.arange(0, 10), np.zeros(10) + 1, '--', color = 'black', linewidth=1)
 plt.plot(np.arange(0, 10), np.zeros(10) - 1, '--', color = 'black', linewidth=1)
+
+plt.plot([k, k], [-4, 0], color = 'red', linewidth = 1)
+plt.text(k + 0.01, 0.1, r"$k_{opt} = $ " + str(round(k, 2)), color = 'red', fontsize = 14)
+k_opterr = [np.interp(i, -Tau, K) for i in sigma]
+plt.plot([k_opterr[0], k_opterr[0]], [-4, 1], '--', color = 'red', linewidth = 0.5)
+plt.plot([k_opterr[1], k_opterr[1]], [-4, -1], '--', color = 'red', linewidth = 0.5)
+
+plt.savefig('../figures/tauvsk-sdss.eps')
 plt.show()
