@@ -6,6 +6,90 @@ from scipy.integrate import quad
 import scipy.stats as stat
 import math
 
+class QuasarData:
+    #Z = redshifts
+    #bands = [Band]. assume they have been set up as defined in Band:
+    #prerequisites: data has already been truncated, fluxes are fluxes of that band
+    
+    def __init__(self, Z, bands):
+        print "initializing quasar data \n"
+        self.Z = Z
+        self.bands = bands
+        
+        for b in bands:
+            print "band: " + b.name
+            F = b.F
+            
+            L = np.array([b.luminosity(Z[i], F[i]) for i in range(len(Z))])
+            b.set_luminosity(L)
+            print "luminosity set up"
+            
+            Lmin = np.array([b.min_luminosity(Z[i]) for i in range(len(Z))])
+            b.set_min_luminosity(Lmin)
+            print "minimum luminosity set up"
+            
+            if(len(bands) > 1):
+                Zmax = np.array([self.Zmax(L, b) for i in range(len(Z))])
+                b.set_zmax(Zmax)
+                print "ZMax set up"
+            
+            print "\n"
+    
+    def luminosity(self, z, f, band):
+       return band.luminosity(z, f)
+    
+    def Zmax(self, L, band):
+        Z = np.hstack((np.arange(0.001, 4.99, 0.001), np.arange(5, 500, 0.5)))
+        log_Lmin = [np.log10(self.luminosity(z, band.fmin, band.k)) for z in Z]
+        x = lambda logl: np.interp(logl, log_Lmin, Z, 0, float("inf"))
+        return x(L)
+    
+    def size(self):
+        return len(self.Z)
+    
+    #sort all data by redshift
+    def sort(self):
+        index = np.argsort(self.Z)
+        self.Z = self.Z[index]
+        
+        for b in self.bands:
+            L = b.L[index]
+            b.set_luminosity(L)
+            Lmin = b.Lmin[index]
+            b.set_min_luminosity(Lmin)    
+            if(len(self.bands) > 1):
+                Zmax = b.Zmax[index]
+                b.set_zmax(Zmax)    
+                
+    
+class Band:
+    fmin = 0.0
+    k = lambda x: x
+    
+    def __init__(self, bandname, fmin, F, k_correction):
+        self.name = bandname
+        self.fmin = fmin
+        self.F = F
+        self.k = k_correction
+        
+    def luminosity(self, z, f):
+        kc = self.k(z)
+        return 4 * math.pi * (d_lum(z)**2) * f / kc
+
+    def min_luminosity(self, z):
+        kc = self.k(z)
+        return 4 * math.pi * (d_lum(z)**2) * self.fmin / kc
+    
+    def set_luminosity(self, L):
+        self.L = L
+        
+    def set_min_luminosity(self, Lmin):
+        self.Lmin = Lmin
+        
+    def set_zmax(self, Zmax):
+        self.Zmax = Zmax
+        
+
 def convert(Z, M, m_max, m_min, f0):
     F = [magtoflux(m, f0) for m in M]
     L = [lum(Z[i], F[i]) for i in range(0,len(F))]
@@ -61,21 +145,6 @@ def k_opt(z): #with sign convention: m_intrinsic = m_obs - K, and L = 4 pi d^2 f
         k = np.interp(z, Z_k, K) - 2.5 * (1 + alpha_opt) * math.log10(1 + 2)
     return 10**(-k / 2.5)
 
-#TODO: convert from one wavelength to another
-def lum(z, f):
-    kc = k_opt(z)
-    return 4*math.pi*(d_lum(z)**2)*f/kc
-
-#fmin = 0.083e-26 #value for Singal et al. (2013)
-def lmin(l, f, fmin):
-    return l*fmin/f
-
-
-#concatentate quasar data?
-def concatenate(Z, M, F, L, Lmin):
-    data = np.stack((Z, M, F, L, Lmin))
-    data = np.transpose(data)
-    return data
 
 #double truncate data based off of apparent magnitude
 def truncate(data, m_max, m_min):

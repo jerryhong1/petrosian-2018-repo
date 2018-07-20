@@ -196,7 +196,7 @@ axes = plt.gca()
 axes.set_xlim([0, 5])
 axes.set_ylim([29, 33])
 plt.minorticks_on()
-plt.savefig('../figures/OptSDSSFIRSTlogLz.eps')
+plt.savefig('../figures/OptSDSSFIRSTlogLz.png')
 
 '''
 #Test Zmax
@@ -216,7 +216,7 @@ plt.minorticks_on()
 axes = plt.gca()
 axes.set_xlim([0, 5])
 axes.set_ylim([29, 36.5])
-plt.savefig('../figures/RadSDSSFIRSTlogLz.eps')
+plt.savefig('../figures/RadSDSSFIRSTlogLz.png')
 plt.show()
 
 '''
@@ -251,7 +251,7 @@ axes.text(ZMaxRad[i] + 0.1, 30, r'$z_{max, i}^{r}$',
         horizontalalignment='left',
         verticalalignment='top', 
         color = 'black', fontsize = 18)
-plt.savefig('../figures/zmax.eps')
+plt.savefig('../figures/zmax.png')
 plt.show()
 
 # In[] Plots of tau vs k
@@ -304,17 +304,17 @@ plt.show()
 
 # In[8]: More plots
 #Lopt' vs Lrad' (local)
-plt.figure()
+plt.figure(figsize=(8,6))
 plt.plot(np.log10(L_optl), np.log10(L_radl), '.', markersize=1)
-plt.xlabel(r"$\log(L_{opt}')$")
-plt.ylabel(r"$\log(L_{rad}')$")
+plt.xlabel(r"$\log(L_{opt}')$", fontsize = 16)
+plt.ylabel(r"$\log(L_{rad}')$", fontsize = 16)
 #plt.title("Local luminosity scatter plot")
-plt.text(29.75, 35, r"$g(z) = \frac{(1 + z)^k}{1 + (\frac{1 + z}{Z_{cr}})^k}$", color = 'black', fontsize = 14)
-plt.text(30.5, 34.5, r"$k_{rad} = $ " + str(round(k_rad, 2)) + "\n" + r"$k_{opt} = $ " + str(round(k_opt, 2)) + "\n" + r"$Z_{cr} = $ " + str(3.7), color = 'black', fontsize = 12, bbox=dict(facecolor='white', alpha=0.5))
+plt.text(29.75, 35, r"$g(z) = \frac{(1 + z)^k}{1 + (\frac{1 + z}{Z_{cr}})^k}$", color = 'black', fontsize = 18)
+plt.text(30.5, 34.5, r"$k_{rad} = $ " + str(round(k_rad, 2)) + "\n" + r"$k_{opt} = $ " + str(round(k_opt, 2)) + "\n" + r"$Z_{cr} = $ " + str(3.7), color = 'black', fontsize = 16, bbox=dict(facecolor='white', alpha=0.5))
 axes = plt.gca()
 axes.set_xlim([28.5, 31])
 axes.set_ylim([29, 36])
-plt.savefig('../figures/localL-L.eps')
+plt.savefig('../figures/localL-L.png')
 plt.minorticks_on()
 
 #alpha vs r
