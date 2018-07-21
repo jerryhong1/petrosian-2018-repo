@@ -3,18 +3,16 @@
 
 from __future__ import division
 import numpy as np
-import math
 import quasars as quas
+from quasars import Band, QuasarData
 import matplotlib.pyplot as plt
-import scipy.stats as stat
-#from mpl_toolkits.mplot3d import axes3d
 from matplotlib import rc
 rc('text', usetex=True)
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
 
 
-# In[1]: import file and put into array
+# In[1]: import file and put into QuasarData and band objects.
 file = open("SDSSFIRSTComplete.dat","r") 
 lines = file.readlines()
 file.close() 
@@ -23,161 +21,43 @@ for i in range(5, len(lines)):
     linearr = np.array(lines[i].strip().split())
     for j in range(0, len(linearr)):
         data[i - 5, j] = float(linearr[j])
-    
+
 # z = 0, d_lum = 1, k = 2, f_2500A = 3, f_1.4GHz = 4, L_o = 5, L_r = 6
-    
+#convert from mJy to cgs:
+data[:,4] = data[:,4] * 1e-26
 
 # In[2]: Determine minimum values
-fminOpt = 0.08318e-26 #0.083 mJy
-alphaOpt = -0.5
-def LMinOpt(z):
-    dl = quas.d_lum(z)
-    k = quas.k_opt(z)
-    L = 4 * math.pi * dl**2 * fminOpt / k
-    lambda_i = 7625.e-8 
-    lambda_f = 2500.e-8
-    L = L * (lambda_f / lambda_i)**(-alphaOpt)
-    return L
-    
-alphaRad = -0.6
-fminRad = 1.0e-26 #1 mJy
-def LMinRad(z):
-    dl = quas.d_lum(z)
-    k = (1 + z)**(1 + alphaRad)
-    L = 4 * math.pi * dl**2 * fminRad / k
-    return L
+fmin_i = 0.083e-26 #see Singal et al. (2013)
+alpha_opt = -0.5    
+lambda_i = 7625. 
+lambda_opt = 2500.
+i_to_opt = lambda i: i *(lambda_opt / lambda_i)**(-alpha_opt)
+fmin_opt = i_to_opt(fmin_i)
 
-# In[4]: Localize test
-Lmin_opt = np.array([LMinOpt(z) for z in data[:,0]])
-Lmin_rad = np.array([LMinRad(z) for z in data[:,0]])
-L_local, Lmin_local = quas.localize(data[:,0], data[:,5], Lmin_opt, 3.5)
+alpha_rad = -0.6
+fmin_rad = 1.0e-26 #1 mJy
+def k_rad(z):
+    return (1 + z)**(1 + alpha_rad)
 
-#plt.figure()
-#plt.plot(data[:,0], np.log10(L_local),'.', markersize=1, label="my data", color='black')
-#plt.plot(data[:,0], np.log10(Lmin_local))
-#print quas.tau(data[:,0], L_local, Lmin_local)
+# In[3]: Create Objects
+o_band = Band('o', fmin_opt, data[:,3], quas.k_opt)
+o_band.set_luminosity(data[:,5])
+r_band = Band('r', fmin_rad, data[:,4], k_rad)
+r_band.set_luminosity(data[:,6])
+sdssfirst = QuasarData(data[:,0], [o_band, r_band])
 
-# In[5]: SKIP combined tau analysis
-'''
-def tauVsKs(Z, L_opt, Lmin_opt, L_rad, Lmin_rad, K_opt, K_rad):
-    Opt = []
-    Rad = []
-    Tau = []
-    for ko in K_opt:
-        for kr in K_rad:
-            L_opt_l, Lmin_opt_l = quas.localize(Z, L_opt, Lmin_opt, ko)
-            L_rad_l, Lmin_rad_l = quas.localize(Z, L_rad, Lmin_rad, kr)
-            print('\nko = ' +  str(ko) + '  kr = ' + str(kr))
-            t = tauCombined(Z, L_opt_l, Lmin_opt_l, L_rad_l, Lmin_rad_l)
-            print ('\ntau = ' + str(t))
-            Opt.append(ko)
-            Rad.append(kr)
-            Tau.append(t)
-    return Opt, Rad, Tau
+# In[4]: check plots
+plt.plot(np.log10(sdssfirst.Z), np.log10(r_band.L), '.', markersize = 1)
+plt.plot(np.log10(sdssfirst.Z), np.log10(r_band.Lmin), '-', color = 'red')
+Z = np.hstack((np.arange(0.001, 4.99, 0.001), np.arange(5, 10, 0.5)))
+plt.plot(np.log10(Z), np.log10([r_band.min_luminosity(z) for z in Z]), '-', color = 'red')
 
-#modified defintion of associated set to incorporate both bands:
-def tauCombined(Z, L_opt, Lmin_opt, L_rad, Lmin_rad):
-    #as defined in singal, petrosian papers in 2010s. tau = (∑resid)/(sqrt(∑variance))
-    resido = 0
-    varo = 0
-    
-    residr = 0
-    varr = 0
-    
-    for i in range(0, len(Z)):
-        #create associated sets
-        j = [m for m in range(0, len(Z)) if (L_opt[m] > Lmin_opt[i] and L_rad[m] > Lmin_rad[i] and Z[m] < Z[i])] #see petrosian
-        if (len(j) == 1 or len(j) == 2): continue
-        j.append(i)
-        
-        #determine rank: optical
-        L_ass_opt =  L_opt[j]
-        L_rank = stat.rankdata(L_ass_opt, 'max') #ranks of all luminosities
-        rank = L_rank[-1] - 1 #determine rank of data point i
-        exp = 0.5 * (len(L_ass_opt))
-        
-        resido = resido + (rank - exp)
-        varo = varo + (1/12.0 * (-1 + (len(L_ass_opt)-1)**2))
-
-        #determine rank: optical
-        L_ass_rad =  L_rad[j]
-        L_rank = stat.rankdata(L_ass_rad, 'max') #ranks of all luminosities
-        rank = L_rank[-1] - 1 #determine rank of data point i
-        exp = 0.5 * (len(L_ass_rad))
-        
-        residr = residr + (rank - exp)
-        varr = varr + (1/12.0 * (-1 + (len(L_ass_rad)-1)**2))
-        
-        #troubleshooting
-        if(i % 500 == 0): print i, resido, varo, residr, varr
-        
-    t = residr**2 / varr +  resido**2 / varo
-    return math.sqrt(t)
-
-o, r, t = tauVsKs(data[:,0], data[:,5], Lmin_opt, data[:,6], Lmin_rad, np.arange(3.0, 3.4, 0.1), np.arange(5.3, 5.7, 0.1))
-print o, r, t
-
-
-fig = plt.figure()
-ax = fig.add_subplot(111, projection='3d')
-
-# Plot a basic wireframe.
-ax.plot_wireframe(o, r, t, rstride=10, cstride=10)
-plt.show()
-'''
-
-# In[6]: Determine if "optically limited" or "radio limited"
-Z = np.hstack((np.arange(0.001, 4.99, 0.001), np.arange(5, 500, 0.5)))
-o = lambda logl: np.interp(logl, [np.log10(LMinOpt(z)) for z in Z], Z, 0, float("inf"))
-ZMaxOpt = o(np.log10(data[:,5]))
-
-r = lambda logl: np.interp(logl, [np.log10(LMinRad(z)) for z in Z], Z, 0, float("inf"))
-ZMaxRad  = r(np.log10(data[:,6]))
-
-#data points that are optically limited, data points that are radio limited:
-OptLim = np.where(ZMaxOpt < ZMaxRad)[0]
-RadLim = np.where(ZMaxRad < ZMaxOpt)[0]
-
-plt.figure()
-plt.plot(data[OptLim,0], np.log10(data[OptLim,5]),'.', markersize=1, label="my data", color='black')
-plt.plot(data[:,0], np.log10([LMinOpt(z) for z in data[:,0]]))
-
-plt.figure()
-plt.plot(data[RadLim,0], np.log10(data[RadLim,6]),'.', markersize=1, label="my data", color='black')
-plt.plot(data[:,0], np.log10([LMinRad(z) for z in data[:,0]]))
-
-
+# In[5]: correlation analysis: tau vs k + r vs alpha
 K_opt = np.arange(2.5, 4., 0.1)
 K_rad = np.arange(4.5, 5.5, 0.1)
-Tau_opt = quas.tauvsk(data[OptLim,0], data[OptLim,5], Lmin_opt[OptLim], K_opt)
-Tau_rad = quas.tauvsk(data[RadLim,0], data[RadLim,6], Lmin_rad[RadLim], K_rad)
+Alpha, R = sdssfirst.correlation_analysis('o', 'r')
 
-# In[7]: Corr-reduced luminosity and correlations
-
-#alpha = 1 #test
-L0 = 1e30 #test
-k_opt = np.interp(0, -Tau_opt, K_opt)
-k_rad = np.interp(0, -Tau_rad, K_rad)
-
-L_optl, foo = quas.localize(data[:,0], data[:,5], Lmin_opt, k_opt)
-L_radl, foo = quas.localize(data[:,0], data[:,6], Lmin_rad, k_rad)
-
-LumCr = lambda L_opt, L_rad, alpha: L_rad * (L0/L_opt)**alpha
-#LCr = [LumCr(L_optl[j], L_radl[j], alpha) for j in range(0, len(data[:,]))]
-
-def rvsalpha(L_optl, L_radl, Alpha):
-    R = []
-    for a in Alpha:
-        LCr = [LumCr(L_optl[i], L_radl[i], a) for i in range(0, len(data[:,]))]        
-        r = stat.linregress(np.log10(L_optl), np.log10(LCr)).rvalue
-        R.append(r)
-    return R
-
-Alpha = np.arange(0,1,0.005)
-R = rvsalpha(L_optl, L_radl, Alpha)
-
-
-# In[3]: Plots of log(L) vs. z
+# In[3]: PLOTs of log(L) vs. z
 plt.figure()
 plt.plot(np.log10(data[:,5]), np.log10(data[:,6]), '.', markersize=1, label="my data", color='black')
 plt.xlabel(r"$\log(L_{opt})$")
@@ -224,12 +104,13 @@ plt.show()
 plt.plot(data[i,0], np.log10(data[i,6]), '.', markersize=12, color = 'red')
 plt.plot(ZMaxRad[i], np.log10(data[i,6]), '.', markersize=12, color = 'red')
 '''
-# In[] Zmax Definition
+# In[] PLOT: Zmax Definition
+
 
 plt.figure(figsize=(8,6))
 #logl_rad vs z
-plt.plot(data[:,0], np.log10(data[:,6]),'.', markersize=1, label="my data", color='#A0A0A0')
-plt.plot(data[:,0], np.log10([LMinRad(z) for z in data[:,0]]), linewidth = 1, color = 'red')
+plt.plot(data[:,0], np.log10(r_band.L),'.', markersize=1, label="my data", color='#A0A0A0')
+plt.plot(data[:,0], np.log10([r_band.min_luminosity(z) for z in data[:,0]]), linewidth = 1, color = 'red')
 plt.xlabel("z", fontsize=14)
 plt.ylabel(r"$\log(L_{rad})$", fontsize=14)
 plt.minorticks_on()
@@ -240,23 +121,27 @@ axes.set_ylim([29, 36.5])
 #Zmax
 i = 2002
 plt.plot(data[i,0], np.log10(data[i,6]), '.', markersize=12, color = 'black')
-plt.plot([data[i,0],ZMaxRad[i]], [np.log10(data[i,6]), np.log10(data[i,6])], '--', color = 'black', linewidth = 2)
-plt.plot([ZMaxRad[i],ZMaxRad[i]], [0, np.log10(data[i,6])], '--', color = 'black', linewidth = 2)
+plt.plot([data[i,0],r_band.Zmax[i]], [np.log10(r_band.L[i]), np.log10(r_band.L[i])], '--', color = 'black', linewidth = 2)
+plt.plot([r_band.Zmax[i],r_band.Zmax[i]], [0, np.log10(r_band.L[i])], '--', color = 'black', linewidth = 2)
 axes.text(data[i,0], np.log10(data[i,6]) + 0.3, r'\textbf{Source $\mathbf{i}$}',
         horizontalalignment='center',
         verticalalignment='center', 
         color = 'black', fontsize = 14,
         bbox=dict(facecolor='white', alpha=0.7, ec = 'none'))
-axes.text(ZMaxRad[i] + 0.1, 30, r'$z_{max, i}^{r}$',
+axes.text(r_band.Zmax[i] + 0.1, 30, r'$z_{max, i}^{r}$',
         horizontalalignment='left',
         verticalalignment='top', 
         color = 'black', fontsize = 18)
 plt.savefig('../figures/zmax.png')
 plt.show()
 
-# In[] Plots of tau vs k
+# In[] PLOT of tau vs k
 sigma = [-1, 1]
 #tau vs k_opt
+Tau_opt = o_band.tau_array
+K_opt = o_band.k_array
+k_opt = o_band.k_g
+
 plt.figure(3)
 plt.title(r"$\tau$ vs $k_{opt}$ (SDSS X FIRST set)")
 plt.plot(K_opt, Tau_opt)
@@ -280,6 +165,10 @@ plt.savefig('../figures/tauvsk-first-opt.eps')
 plt.show()
 
 #tau vs k_rad
+Tau_rad = r_band.tau_array
+K_rad = r_band.k_array
+k_rad = r_band.k_g
+
 plt.figure(4)
 plt.title(r"$\tau$ vs $k_{rad}$ (SDSS X FIRST set)")
 plt.plot(K_rad, Tau_rad)
@@ -302,9 +191,11 @@ plt.plot([k_raderr[1], k_raderr[1]], [-4, -1], '--', color = 'red', linewidth = 
 plt.savefig('../figures/tauvsk-first-rad.eps')
 plt.show()
 
-# In[8]: More plots
+# In[8]: More PLOTs
 #Lopt' vs Lrad' (local)
 plt.figure(figsize=(8,6))
+L_optl, foo = quas.localize(sdssfirst.Z, o_band.L, o_band.Lmin, o_band.k_g)
+L_radl, foo = quas.localize(sdssfirst.Z, r_band.L, r_band.Lmin, r_band.k_g)
 plt.plot(np.log10(L_optl), np.log10(L_radl), '.', markersize=1)
 plt.xlabel(r"$\log(L_{opt}')$", fontsize = 16)
 plt.ylabel(r"$\log(L_{rad}')$", fontsize = 16)
