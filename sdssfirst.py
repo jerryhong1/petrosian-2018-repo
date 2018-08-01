@@ -12,7 +12,7 @@ plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
 
 
-# In[1]: import file and put into QuasarData and band objects.
+# In[1]: import file and put into QuasarData anLarad band objects.
 file = open("SDSSFIRSTComplete.dat","r") 
 lines = file.readlines()
 file.close() 
@@ -58,6 +58,7 @@ K_rad = np.arange(4.5, 5.5, 0.1)
 Alpha, R = sdssfirst.correlation_analysis('o', 'r')
 
 # In[3]: PLOTs of log(L) vs. z
+figurepath = '../figures/sdssxfirst'
 plt.figure()
 plt.plot(np.log10(data[:,5]), np.log10(data[:,6]), '.', markersize=1, label="my data", color='black')
 plt.xlabel(r"$\log(L_{opt})$")
@@ -76,7 +77,7 @@ axes = plt.gca()
 axes.set_xlim([0, 5])
 axes.set_ylim([29, 33])
 plt.minorticks_on()
-plt.savefig('../figures/OptSDSSFIRSTlogLz.png')
+plt.savefig(figurepath + 'OptSDSSFIRSTlogLz.png')
 
 '''
 #Test Zmax
@@ -96,7 +97,7 @@ plt.minorticks_on()
 axes = plt.gca()
 axes.set_xlim([0, 5])
 axes.set_ylim([29, 36.5])
-plt.savefig('../figures/RadSDSSFIRSTlogLz.png')
+plt.savefig(figurepath + 'RadSDSSFIRSTlogLz.png')
 plt.show()
 
 '''
@@ -132,7 +133,7 @@ axes.text(r_band.Zmax[i] + 0.1, 30, r'$z_{max, i}^{r}$',
         horizontalalignment='left',
         verticalalignment='top', 
         color = 'black', fontsize = 18)
-plt.savefig('../figures/zmax.png')
+plt.savefig(figurepath + 'zmax.png')
 plt.show()
 
 # In[] PLOT of tau vs k
@@ -161,7 +162,7 @@ k_opterr = [np.interp(i, -Tau_opt, K_opt) for i in sigma]
 plt.plot([k_opterr[0], k_opterr[0]], [-4, 1], '--', color = 'red', linewidth = 0.5)
 plt.plot([k_opterr[1], k_opterr[1]], [-4, -1], '--', color = 'red', linewidth = 0.5)
 
-plt.savefig('../figures/tauvsk-first-opt.eps')
+plt.savefig(figurepath + 'tauvsk-first-opt.eps')
 plt.show()
 
 #tau vs k_rad
@@ -188,7 +189,7 @@ k_raderr = [np.interp(i, -Tau_rad, K_rad) for i in sigma]
 plt.plot([k_raderr[0], k_raderr[0]], [-4, 1], '--', color = 'red', linewidth = 0.5)
 plt.plot([k_raderr[1], k_raderr[1]], [-4, -1], '--', color = 'red', linewidth = 0.5)
          
-plt.savefig('../figures/tauvsk-first-rad.eps')
+plt.savefig(figurepath + 'tauvsk-first-rad.eps')
 plt.show()
 
 # In[8]: More PLOTs
@@ -205,7 +206,7 @@ plt.text(30.5, 34.5, r"$k_{rad} = $ " + str(round(k_rad, 2)) + "\n" + r"$k_{opt}
 axes = plt.gca()
 axes.set_xlim([28.5, 31])
 axes.set_ylim([29, 36])
-plt.savefig('../figures/localL-L.png')
+plt.savefig(figurepath + 'localL-L.png')
 plt.minorticks_on()
 
 #alpha vs r
@@ -224,4 +225,51 @@ plt.plot(np.arange(-1, 3), np.zeros(4), color = 'black', linewidth = 1)
 axes.set_xlim([min(Alpha), 1])
 axes.set_ylim([min(R), max(R)])
 plt.minorticks_on()
-plt.savefig('../figures/r-alpha.eps')
+plt.savefig(figurepath + 'r-alpha.eps')
+
+
+# In[19]: Test density/luminosity functions
+
+for b in sdssfirst.bands:
+    Z_cdf = np.arange(0.2, 5, 0.2)
+    i = b.limited_indeces
+    Z = sdssfirst.Z[i]
+    L, Lmin = quas.localize(sdssfirst.Z[i], b.L[i], b.Lmin[i], b.k_g)
+    
+    plt.figure()
+    plt.plot(sdssfirst.Z[i], np.log10(L), '.', markersize = 2)
+    plt.plot(sdssfirst.Z[i], np.log10(Lmin))
+    plt.title(r"$g(z) = \frac{(1 + z)^k}{1 + (\frac{1 + z}{Z_{cr}})^k}$, $Z_{cr} = 3.7$, $k_r = 4.82$")
+    plt.xlabel(r"$z$")
+    plt.ylabel(r"$\log(L_r')$")
+    
+    CDF = [quas.cdf(z, Z, L, Lmin) for z in Z_cdf]
+#    fit = interp.InterpolatedUnivariateSpline(Z_cdf, CDF, k = 3)
+    
+    plt.figure()
+    plt.plot(Z_cdf, CDF, '.')
+#    plt.plot(Z_cdf, fit(Z_cdf))
+    plt.title(r"Cumulative Density Function  for $L_{" + b.name + '}$')
+    
+    rho = [quas.devolution(z, Z_cdf, CDF) for z in Z_cdf]
+    plt.figure()
+    plt.plot(Z_cdf, rho)
+    plt.title(r"Density Evolution for $L_{" + b.name + '}$')
+    
+    LDF = [quas.ldf(Z_cdf[z], L, b.k_g, rho[z]) for z in range(len(Z_cdf))]
+    plt.figure()
+    plt.plot(Z_cdf, LDF)
+    plt.title(r"Luminosity Density Function for $L_{" + b.name + '}$')
+    
+    L_lf = np.arange(min(np.log10(L)), max(np.log10(L)), 0.5)
+    L_lf = 10**L_lf
+    CLF = [quas.clf(l, Z, L, Lmin) for l in L_lf]
+    plt.figure()
+    plt.plot(np.log10(L_lf), np.log10(CLF), '.')
+    plt.title(r"Cumulative Luminosity Function for $L_{" + b.name + '}$')
+    
+    LF = [quas.lf(l, L_lf, CLF) for l in L_lf]
+    plt.figure()
+    plt.plot(np.log10(L_lf), np.log10(LF), '.')
+    plt.title(r"Luminosity Function for $L_{" + b.name + '}$')
+

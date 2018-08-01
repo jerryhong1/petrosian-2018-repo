@@ -75,7 +75,7 @@ def k_opt(z): #with sign convention: m_intrinsic = m_obs - K, and L = 4 pi d^2 f
         k = np.interp(z, Z_k, K) - 2.5 * (1 + alpha_opt) * math.log10(1 + 2)
     return 10**(-k / 2.5)
 
-fmin_i = 0.083e-26 #see Singal et al. (2013)
+fmin_i = 0.08317e-26 #see Singal et al. (2013)
 fmin_opt = i_to_opt(fmin_i)
 
 # In[11]: truncate data to obtain f_min = 0.083 mJy, aka m_max = 19.1
@@ -101,16 +101,16 @@ sdss_trunc = QuasarData(Z[sdss_trunc_index], [opt_band_trunc])
 sdss.sort()
 sdss_trunc.sort()
 
-# In[12]: Test code for tau; probably not necessary.
+# In[12]: Test code for tau
 
 i = 38123
-j = [m for m in range(0, sdss.size()) if (opt_band.L[m] > opt_band.Lmin[i] and sdss.Z[m] < sdss.Z[i])]
+j = [m for m in range(0, sdss.size()) if (opt_band.L[m] > opt_band.Lmin[i] and sdss.Z[m] < sdss.Z[i] and opt_band.Lmin[m] < opt_band.Lmin[i])]
 j.append(i)
 L_ass = opt_band.L[j]
 Z_ass = sdss.Z[j]
 
 L_rank = stat.rankdata(L_ass, 'max') #ranks of all the local luminosities
-rank = L_rank[-1] - 1 #associated set does not include data point itself, so -1 to avoid overcounting.
+rank = L_rank[-1]  #associated set does not include data point itself, so -1 to avoid overcounting.
 exp = 0.5 * (1 + len(L_ass))
 resid = rank - exp
 var = 1/12.0 * (len(L_ass)**2 - 1)
@@ -184,91 +184,8 @@ axes.text(Z_ass[-1] + 0.05, np.log10(opt_band.L[i]), r'$\textbf{Source}$',
 axes.set_xlim([0,5])
 axes.set_ylim([29,33])
 plt.minorticks_on()
-plt.savefig("../figures/AssociatedSet.png")
+#plt.savefig("../figures/AssociatedSet.png")
 plt.show()
-
-
-# In[14]: kendall's tau statistic: takes in L'-z coordinates (+Lmin') to and calculates correlation, 
-# constructing associated sets for each source along the way. Assume Z, L, Lmin are all same length.
-def tau_(Z, L, Lmin): #as defined in singal, petrosian papers in 2010s. tau = (∑resid)/(sqrt(∑variance))
-    resid = 0
-    var = 0
-    for i in range(0, len(Z)):
-        #create associated sets
-        j = [m for m in range(0, len(Z)) if (L[m] > Lmin[i] and Z[m] < Z[i])] #see petrosian
-        j.append(i)
-        L_ass = L[j]
-        if (len(j) == 1 or len(j) == 2): continue
-        
-        #determine rank
-        L_rank = stat.rankdata(L_ass, 'max') #ranks of all luminosities
-        rank = L_rank[-1] - 1 #determine rank of data point i
-        exp = 0.5 * (len(L_ass))
-        
-        resid = resid + (rank - exp)
-        var = var + (1/12.0 * (-1 + (len(L_ass)-1)**2))
-        
-        #troubleshooting
-        if(i % 500 == 0): print i, resid, var
-        
-    t = resid / math.sqrt(var)
-    return t
-
-def tau_n(Z, L, Lmin): #petrosian said: normalize and see if there's a difference
-    resid = 0
-    var = 0
-    for i in range(0, len(Z)):
-        #create associated sets
-        j = [m for m in range(0, len(Z)) if (L[m] >= Lmin[i] and Z[m] <= Z[i])] #see petrosian
-        rankIndex = np.where(np.array(j) == i)[0][0]
-        L_ass = L[j]
-        
-        #determine rank
-        L_rank = stat.rankdata(L_ass) #ranks of all luminosities
-        rank = L_rank[rankIndex] #determine rank of data point i
-        rank = rank / (1 + len(L_ass)) #normalize
-        exp = 0.5
-        
-        resid = resid + (rank - exp)
-        var = var + (1/12.0)
-        
-        #troubleshooting
-        if(i % 500 == 0): print i, resid, var
-        
-    t = resid / math.sqrt(var)
-    return t
-
-def tau(Z, L, Lmin): #as defined in EP; tau = ∑(resid/var)
-    t = 0
-    for i in range(0, len(Z)):
-        #create associated sets
-        j = [m for m in range(0, len(Z)) if (L[m] >= Lmin[i] and Z[m] <= Z[i])] #see petrosian
-        rankIndex = np.where(np.array(j) == i)[0][0]
-        L_ass = L[j]
-        
-        #determine rank
-        L_rank = stat.rankdata(L_ass) #ranks of all luminosities
-        rank = L_rank[rankIndex] #determine rank of data point i
-        exp = 0.5 * (1 + len(L_ass))
-        #print(len(L_ass))
-        
-        resid = (rank - exp)
-        var = (1/12.0 * (len(L_ass)**2 - 1))
-        
-        if(len(L_ass) == 1):
-            t = t
-            #print 'smallest ass: ', i
-        else:
-            t = t + resid / math.sqrt(var)
-        
-        #troubleshooting
-        if(i % 500 == 0): print i, resid, var
-    
-    t = t / math.sqrt(len(Z))
-    return t
-
-    
-#tau(data_s[:,0], data_s[:,3], data_s[:,4])
 
 # In[15]: Local Luminosity creation, given k:
 
@@ -278,7 +195,7 @@ def g(z, k):
     return (1 + z)**k /(1 + ((1 + z) / z_cr)**k)
 
 #test with k = 3:
-k = 3.4
+k = 3.3
 L_local, Lmin_local = quas.localize(sdss.Z, opt_band.L, opt_band.Lmin, k)
 print 'L_local:', L_local, '\n'
 
@@ -296,9 +213,9 @@ axes.set_ylim([28.5,32])
 
 # In[17]: Iterate through k's to graph tau vs k (sample):
 
-#K = np.arange(3.3, 3.8, 0.1)
-K = np.array([3.6])
-n = 20
+K = np.arange(3.1, 3.7, 0.1)
+#K = np.array([3.3])
+n = 1
 Tau = quas.tauvsk(sdss.Z[::n], opt_band.L[::n], opt_band.Lmin[::n], K)
 
 # In[18]: Tau vs k plot:
@@ -322,7 +239,7 @@ plt.plot(np.arange(0, 10), np.zeros(10) - 1, '--', color = 'black', linewidth=1)
 
 plt.plot([k, k], [-4, 0], color = 'red', linewidth = 1)
 plt.text(k + 0.01, 0.1, r"$k_{opt} = $ " + str(round(k, 2)), color = 'red', fontsize = 14)
-k_opterr = [np.interp(i, -Tau, K) for i in sigma]
+k_opterr = [np.interp(s, -Tau, K) for s in sigma]
 plt.plot([k_opterr[0], k_opterr[0]], [-4, 1], '--', color = 'red', linewidth = 0.5)
 plt.plot([k_opterr[1], k_opterr[1]], [-4, -1], '--', color = 'red', linewidth = 0.5)
 
