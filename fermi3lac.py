@@ -14,6 +14,7 @@ from quasars import QuasarData, Band
 import matplotlib.pyplot as plt
 import math
 import scipy.interpolate as interp
+import numpy.polynomial.polynomial as poly
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
 
@@ -166,7 +167,7 @@ for i in range(len(I_missing)):
         
 Fo = [quas.bandtoband(f, quas.lambda_v, quas.lambda_opt, quas.alpha_opt) for f in Fo]
 
-fmin_o = 0.08317e-26 * (quas.lambda_opt / 7625)**(-quas.alpha_opt)
+fmin_o = quas.bandtoband(0.08317e-26, quas.lambda_i, quas.lambda_opt, quas.alpha_opt)
 #fmin_o = 0.02317e-26 * (quas.lambda_opt / 7625)**(-quas.alpha_opt)
 #fmin_o = 0
 
@@ -324,43 +325,106 @@ plt.savefig(figurepath + 'r-alpha.eps')
 
 # In[4]: density, luminosity functions
 
-for b in fsrq.bands:
-    Z_cdf = np.arange(0.05, 3.2, 0.05)
+for b in [fsrq.bands[0]]:
     i = b.limited_indeces
     L, Lmin = quas.localize(fsrq.Z[i], b.L[i], b.Lmin[i], b.k_g)
+    Z = fsrq.Z[i]
     
 #    plt.figure()
 #    plt.plot(fsrq.Z[i], np.log10(L), '.')
 #    plt.plot(fsrq.Z[i], np.log10(Lmin))
     
-    CDF = np.array([quas.cdf(z, fsrq.Z[i], L, Lmin) for z in Z_cdf])
-#    fit = interp.InterpolatedUnivariateSpline(Z_cdf, CDF, k = 3)
-    
+    CDF = np.array([quas.cdf(z, fsrq.Z[i], L, Lmin) for z in Z])
     plt.figure()
-    plt.plot(Z_cdf, CDF, '.')
-#    plt.plot(Z_cdf, fit(Z_cdf))
-    plt.title(r"Cumulative Density Function $\sigma(z)$ for $L_{" + b.name + '}$')
+    plt.plot(Z, np.log10(CDF), '.')
+    plt.title(r"Cumulative Density Function $\log(\sigma(z))$ for $L_{" + b.name + '}$')
     
-    rho = np.array([quas.devolution(z, Z_cdf, CDF) for z in Z_cdf])
-    plt.figure()
-    plt.plot(Z_cdf, rho)
-    plt.title(r"Density Evolution $\rho(z)$ for $L_{" + b.name + '}$')
+    if b.name == 'g':
+        rho = np.array([quas.devolution(z, Z, CDF) for z in Z])
+        plt.figure()
+        plt.plot(Z, rho)
+        
+        plt.title(r"Density Evolution $\rho(z)$ for $L_{" + b.name + '}$')
+        
+        LDF = np.array([quas.ldf(Z[z], L, b.k_g, rho[z]) for z in range(len(Z))])
+        plt.figure()
+        plt.plot(Z, LDF)
+        plt.title(r"Luminosity Density Function \textsterling$(z)$ for $L_{" + b.name + '}$')
+    else: 
+        '''
+        i_split = 106 #split polyfit here
+        Z1 = Z[1:i_split]
+        p_1 = poly.polyfit(Z[1:i_split], np.log10(CDF[1:i_split]), 6)
+        p1 = lambda x: poly.polyval(x, p_1)
+        dp1 = lambda x: poly.polyval(x, poly.polyder(p_1))
+        cdf_fits1 = p1(Z1)
+        
+        Z2 = Z[i_split:]
+        p_2 = poly.polyfit(Z2, np.log10(CDF[i_split:]), 6)
+        p2 = lambda x: poly.polyval(x, p_2)
+        dp2 = lambda x: poly.polyval(x, poly.polyder(p_2))
+        cdf_fits2 = p2(Z2)
+        
+        plt.plot(Z1, cdf_fits1, Z2, cdf_fits2)
+        
+        rho1 = lambda x: 10**(p1(x)) * math.log(10) * dp1(x) / quas.dV_dz(x)
+        rho2 = lambda x: 10**(p2(x)) * math.log(10) * dp2(x) / quas.dV_dz(x)
+        '''
+        '''
+        incr = [j for j in range(1, len(Z) - 1) if Z[j] != Z[j + 1]]
+        Zfit = Z[incr]
+        CDFfit = CDF[incr]
     
-    LDF = np.array([quas.ldf(Z_cdf[z], L, b.k_g, rho[z]) for z in range(len(Z_cdf))])
-    plt.figure()
-    plt.plot(Z_cdf, LDF)
-    plt.title(r"Luminosity Density Function \textsterling$(z)$ for $L_{" + b.name + '}$')
     
-    L_lf = np.arange(min(np.log10(L)), max(np.log10(L)), 0.05)
-    L_lf = 10**L_lf
-    CLF = np.array([quas.clf(l, fsrq.Z[i], L, Lmin) for l in L_lf])
+        fit = interp.UnivariateSpline(Zfit, CDFfit, s = 2000)
+        dfit = fit.derivative()
+        
+        plt.plot(np.arange(0.18, 3.1, 0.02), np.log10(fit(np.arange(0.18, 3.1, 0.02))))
+        
+        plt.figure()
+        plt.plot(Z, CDF, '.')
+        plt.plot(np.arange(0.18, 3.1, 0.02), fit(np.arange(0.18, 3.1, 0.02)))
+        
+        rho = [dfit(z) / quas.dV_dz(z) for z in Zfit]
+        '''
+        
+    
+        Zfit = Z[1:-5]
+        p = poly.polyfit(Zfit, np.log10(CDF[1:-5]), 10)
+        peval = lambda x: poly.polyval(x, p)
+        plt.plot(Zfit, peval(Zfit))
+        dpeval = lambda x: poly.polyval(x, poly.polyder(p))
+        rho_fit = lambda x: 10**(peval(x)) * math.log(10) * dpeval(x) / quas.dV_dz(x)
+        rho_fits = [rho_fit(z) for z in Zfit]
+
+        plt.figure()
+        plt.plot(Z, CDF, '.')
+        plt.plot(Zfit, 10**peval(Zfit))
+    
+        rho = np.array([quas.devolution(z, Z, CDF) for z in Zfit])
+#        rho_fits1 = [rho1(z) for z in Z1]
+#        rho_fits2 = [rho2(z) for z in Z2]
+        
+        plt.figure()
+        plt.plot(Zfit, rho)
+#        plt.plot(Z1, rho_fits1, Z2, rho_fits2)
+#        plt.plot(Z[1:-5], rho_fits)
+        
+        plt.title(r"Density Evolution $\rho(z)$ for $L_{" + b.name + '}$')
+        
+        LDF = np.array([quas.ldf(Zfit[z], L, b.k_g, rho[z]) for z in range(len(Zfit))])
+        plt.figure()
+        plt.plot(Zfit, LDF)
+        plt.title(r"Luminosity Density Function \textsterling$(z)$ for $L_{" + b.name + '}$')
+    
+    CLF = np.array([quas.clf(l, fsrq.Z[i], L, Lmin) for l in L])
     plt.figure()
-    plt.plot(np.log10(L_lf), np.log10(CLF), '.')
+    plt.plot(np.log10(L), np.log10(CLF), '.')
     plt.title(r"Cumulative Luminosity Function $\Phi(L)$ for $L_{" + b.name + '}$')
     
-    LF = np.array([quas.lf(l, L_lf, CLF) for l in L_lf])
+    LF = np.array([quas.lf(l, L, CLF) for l in L])
     plt.figure()
-    plt.plot(np.log10(L_lf), np.log10(LF), '.')
+    plt.plot(np.log10(L), np.log10(LF), '.')
     plt.title(r"Luminosity Function $\psi(L)$ for $L_{" + b.name + '}$')
 
 #plt.figure()

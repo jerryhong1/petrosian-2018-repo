@@ -25,8 +25,10 @@ def isFloat(string):
 
 class QuasarData:
     # Z = redshifts
-    # bands = [Band]. assume they have been set up as defined in Band. (Assume we are comparing two bands at once at most?)
-    # prerequisites: data has already been truncated, fluxes are fluxes of that band, all bands are unique.
+    # bands = [Band]. assume they have been set up as defined in Band. 
+    # (Assume we are comparing two bands at once at most?)
+    # prerequisites: data has already been truncated, fluxes are fluxes of that band, 
+    # all bands are unique.
     # allows for missing data = 0.0
 
     # if bands have not had luminosity/Zmax calculated, calculates them based on the fluxes provided.
@@ -231,7 +233,8 @@ class Band:
     def Zmax_calc(self, L):
         Z = np.hstack((np.arange(0.001, 4.99, 0.001), np.arange(5, 500, 0.5)))
         log_Lmin = [np.log10(self.min_luminosity(z)) for z in Z]
-        x = lambda l: 0.0 if l == 0.0 else np.interp(np.log10(l), log_Lmin, Z, 0, float("inf"))
+        x = lambda l: 0.0 if l == 0.0 else np.interp(np.log10(l), 
+                                                     log_Lmin, Z, 0, float("inf"))
         return np.array([x(l) for l in L])
 
     # can accept empty values as 0.0
@@ -261,8 +264,9 @@ class Band:
 #### MISCELLANEOUS, IMPORTANT FUNCTIONS
 ################################################################################
     
-#luminosity distance in cm. assume the standard ΛCDM cosmology: H0 = 71 km s−1 Mpc−1, ΩΛ = 0.7, and Ωm = 0.3
-#work in cgs
+# luminosity distance in cm. assume the standard ΛCDM cosmology: 
+# H0 = 71 km s−1 Mpc−1, ΩΛ = 0.7, and Ωm = 0.3
+# work in cgs
 def integrand(x, a, b):
     return 1 / math.sqrt(a + b*(1+x)**3)
 
@@ -320,8 +324,9 @@ def k_opt(z): #with sign convention: m_intrinsic = m_obs - K, and L = 4 pi d^2 f
     return 10**(-k / 2.5)
 
 
-#tau calculation
-def tau(Z, L, Lmin): #as defined in singal, petrosian papers in 2010s. tau = (∑resid)/(sqrt(∑variance))
+# tau calculation
+# as defined in singal, petrosian papers in 2010s. tau = (∑resid)/(sqrt(∑variance))
+def tau(Z, L, Lmin): 
     resid = 0
     var = 0
     for i in range(len(Z)):
@@ -348,7 +353,8 @@ def tau(Z, L, Lmin): #as defined in singal, petrosian papers in 2010s. tau = (�
     return t
 
 #Local Luminosity creation, given k:
-#g(z) such that L' = L/g(z). Taken from Singal et al. (2013); considers high-redshift objects.
+#g(z) such that L' = L/g(z). 
+# Taken from Singal et al. (2013); considers high-redshift objects.
 def g(z, k):
     z_cr = 3.7
     return (1 + z)**k /(1 + ((1 + z) / z_cr)**k)
@@ -374,7 +380,8 @@ def tauvsk(Z, L, Lmin, K):
         s.append(t)
     return np.array(s)
 
-# after localizing luminosities, use correlation-reduced lumninosity to calculate correlation
+# after localizing luminosities, use correlation-reduced lumninosity 
+# to calculate correlation
 def rvsalpha(L1, L2, Alpha):
     L0 = 1e30
     LumCr = lambda L1, L2, alpha: L2 * (L0/L1)**alpha
@@ -393,7 +400,7 @@ def cdf(z, Z, L, Lmin):
         if Z[i] > z: continue
         j = [m for m in range(0, len(Z)) if (L[m] > Lmin[i] and Z[m] < Z[i])] # and Lmin[m] < Lmin[i])] #see petrosian
         size = len(j)
-        if size != 0:
+        if size > 0:
             sigma = sigma * (1. + 1. / size)
             
     return sigma
@@ -416,9 +423,10 @@ def clf(l, Z, L, Lmin):
     phi = 1
     for i in range(len(Z)):
         if L[i] < l: continue
-        j = [m for m in range(0, len(Z)) if (L[m] > L[i] and Z[m] < Z[i])] # note that luminosity must be greater than L[i], not Lmin[i]
+        # note that luminosity must be greater than L[i], not Lmin[i]
+        j = [m for m in range(0, len(Z)) if (L[m] > L[i] and Z[m] < Z[i])] 
         size = len(j)
-        if size != 0:
+        if size > 0:
             phi = phi * (1. + 1. / size)
     return phi
 
