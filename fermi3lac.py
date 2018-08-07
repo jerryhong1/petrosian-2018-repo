@@ -1,8 +1,8 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
-# blazars from the 3LAC catalog, with gamma radiation data from 3FGL catalog. 
-# in particular, the ~400 fsrq's.
+# blazars from the 3LAC catalog, with gamma data from 3FGL catalog and some optical data from SDSS DR6.
+# in particular, we analyze the ~400 fsrq's out of the 3LAC catalog.
 
 
 # In[0]: read and parse data; 999 sources with known redshift
@@ -32,7 +32,7 @@ with open('3lac_high.tsv') as tsv:
     i = 0
     for line in csv.reader(tsv, delimiter="\t"):
         if (i >= file_begin):
-            if ('fsrq' in line[7]):
+            if 'fsrq' in line[7]: # and not (quas.isFloat(line[8]) and float(line[8]) < 0.03): # take out first data point
                 line = [s.replace(" ", "") for s in line]
                 names.append(line[0])
                 cnames.append(line[2])
@@ -42,9 +42,9 @@ with open('3lac_high.tsv') as tsv:
                 V_USNO.append(line[12])
                 V_SDSS.append(line[13])
                 I_missing.append(0.0)
-                #find magnitudes on NED for objects without optical data provided
-#                if(line[12].strip() and line[13].strip()): 
-#                    print line[2]
+#                find magnitudes on NED for objects without optical data provided
+                if(not line[12].strip() and not line[13].strip()): 
+                    print line[2]
         i = i + 1
 
 # pull data from the larger catalog
@@ -62,8 +62,8 @@ with open('3fgl.tsv') as tsv:
             Gamma_3fgl.append(line[14])
         i = i + 1
 
-Fg = []
-Gamma = []
+Fg = [] # 
+Gamma = [] # spectral indeces
 for i in range(len(names)):
     index = [j for j in range(len(names_3fgl)) if names[i] in names_3fgl[j]][0]
     Fg.append(Fg_3fgl[index])
@@ -107,17 +107,26 @@ V_SDSS = str2float(V_SDSS)
 Fg = str2float(Fg) 
 Fg = Fg * 1e-12 #over 100 MeV–100 GeV, erg cm−2 s−1, from power-law fit, 1 decimal place
 Gamma = str2float(Gamma)
+I_missing = np.array(I_missing)
 #z_index = np.nonzero(Z)[0] #indeces where Z is known; will create a quasar object based on it
 
-# In[3]: Gamma band: assuming average value for photon spectral index
+# In[3]: Gamma band: for Lmin, Zmax assuming average value for photon spectral index. 
 
 def k_g(z):    
     Gamma_g = 2.45
     alpha_g = Gamma_g - 1
     return (1 + z)**(1 - alpha_g)
 
+def g_lum(z, f, gamma):
+    alpha_g = gamma - 1
+    
+    kc = (1 + Z[i])**(1 - alpha_g)
+    return 4 * math.pi * (quas.d_lum(z)**2) * f / kc
+
+#L = np.array([g_lum(Z[i], Fg[i], Gamma[i]) for i in range(len(Gamma))])
 fmin_g = 2e-12 # see 3LAC paper
-g_band = Band('g', fmin_g, Fg, k_g)
+g_band = Band('\gamma', fmin_g, Fg, k_g)
+#g_band.set_luminosity(L)
 fsrq = QuasarData(Z, [g_band])
 fsrq.sort()
 
@@ -141,7 +150,7 @@ plt.savefig('tauvsk.png')
 
 f0 = 3.631e-20  #assuming singal numbers again
 
-# merge SDSS and USNO optical data
+# merge SDSS and USNO optical data; assume that there is a 
 V = []
 for i in range(len(Z)):
     if(V_USNO[i] != 0.0):
@@ -161,8 +170,9 @@ Fo = np.array(Fo)
 # add missing optical data
 for i in range(len(I_missing)):
     if I_missing[i] != 0.0:
-        f = quas.magtoflux(I_missing[i], f0)
-        Fo[i] = quas.bandtoband(f, quas.lambda_i, quas.lambda_v, quas.alpha_opt)
+        f_i = quas.magtoflux(I_missing[i], f0)
+        if(Fo[i] != 0.0): print "uh oh! " + str(i) + "  " + str(Fo[i]) 
+#        Fo[i] = quas.bandtoband(f_i, quas.lambda_i, quas.lambda_v, quas.alpha_opt)
         
         
 Fo = [quas.bandtoband(f, quas.lambda_v, quas.lambda_opt, quas.alpha_opt) for f in Fo]
@@ -171,7 +181,9 @@ fmin_o = quas.bandtoband(0.08317e-26, quas.lambda_i, quas.lambda_opt, quas.alpha
 #fmin_o = 0.02317e-26 * (quas.lambda_opt / 7625)**(-quas.alpha_opt)
 #fmin_o = 0
 
-#truncate data
+
+
+# In[]: truncate data, set up o-band
 Fo_ = []
 Fo_trunc = []
 Z_trunc = []
@@ -190,41 +202,21 @@ o_band_trunc = Band('o', fmin_o, Fo_trunc, quas.k_opt)
 fsrq.addband(o_band)
 fsrq_trunc = QuasarData(Z_trunc, [o_band_trunc])
 
-# In[]: correlation analysis
-
-Alpha, R = fsrq.correlation_analysis('o', 'g')
-
-
-# In[3.5]: weird shit going on with tau; probably has to do with the g(z) when k is large
-
-Ll, Lminl = quas.localize(fsrq.Z, g_band.L, g_band.Lmin, g_band.k_g)
-plt.figure()
-plt.plot(fsrq.Z, np.log10(Ll), '.', markersize = 2)
-plt.plot(fsrq.Z, np.log10(Lminl))
-plt.title("L/g(z, k) vs. z where tau = 0")
-plt.savefig('local.png')
-
 # In[3]: Gamma band: defining a different Lmin for each source
 
-def lum(z, f, gamma):
-    alpha_g = gamma - 1
-    
-    kc = (1 + Z[i])**(1 - alpha_g)
-    return 4 * math.pi * (quas.d_lum(z)**2) * f / kc
+L = np.array([g_lum(Z[i], Fg[i], Gamma[i]) for i in range(len(Gamma))])
+Lmin = np.array([g_lum(Z[i], fmin_g, Gamma[i]) for i in range(len(Gamma))])
 
-L = np.array([lum(Z[i], Fg[i], Gamma[i]) for i in range(len(Gamma))])
-Lmin = np.array([lum(Z[i], 2e-12, Gamma[i]) for i in range(len(Gamma))])
-
-index = [i for i in range(len(fsrq.Z)) if Z[i] != 0 and L[i] != 0]
+#index = [i for i in range(len(fsrq.Z)) if Z[i] != 0 and L[i] != 0]
 plt.figure()
-plt.plot(Z[index], np.log10(L[index]), '.', markersize = 2)
-plt.plot(fsrq.Z[index], np.log10(g_band.Lmin[index]))
-plt.plot(Z[index], np.log10(Lmin[index]), '.')
+plt.plot(Z, np.log10(L), '.', markersize = 2)
+plt.plot(fsrq.Z, np.log10(g_band.Lmin))
+plt.plot(Z, np.log10(Lmin), '.')
 plt.title("Lgamma vs. z")
 plt.savefig('lgamma.png')
 
 plt.figure()
-plt.errorbar(Z[index], np.log10(L[index]), yerr = [np.log10(L[index]) - np.log10(Lmin[index]), np.zeros(len(Z))], fmt = 'o', markersize = 3, linewidth = 0.5)
+plt.errorbar(Z, np.log10(L), yerr = [np.log10(L) - np.log10(Lmin), np.zeros(len(Z))], fmt = 'o', markersize = 3, linewidth = 0.5)
 
 '''
 Tau = quas.tauvsk(fsrq.Z[index], g_band.L[index], g_band.Lmin[index], K)
@@ -240,11 +232,16 @@ axes.set_ylim([-3,3])
 #plt.savefig('tauvsk.png')
 '''
 
+# In[]: correlation analysis
+
+Alpha, R = fsrq.correlation_analysis(o_band, g_band)
+
+
 # In[5]: Plots
 figurepath = '../figures/fermi3lac-fsrq/'
 
 #L_opt vs. z
-plt.figure()
+plt.figure(figsize=(8,6))
 index = [i for i in range(len(fsrq.Z)) if o_band.L[i] != 0]
 plt.plot(fsrq.Z[index], np.log10(o_band.L[index]), '.', markersize = 2, color = 'black')
 plt.plot(fsrq.Z[index], np.log10(o_band.Lmin[index]))
@@ -252,7 +249,7 @@ plt.plot(fsrq_trunc.Z, np.log10(o_band_trunc.L), '.', markersize = 1, color = 'r
 plt.title(r"$L_{opt}$ vs. $z$")
 
 #L_gam vs. z
-plt.figure()
+plt.figure(figsize=(8,6))
 plt.plot(fsrq.Z[index], np.log10(g_band.L[index]), '.', markersize = 2, color = 'black')
 nonindex = [i for i in range(len(fsrq.Z)) if o_band.L[i] == 0]
 plt.plot(fsrq.Z[nonindex], np.log10(g_band.L[nonindex]), '.', markersize = 1, color = 'red')
@@ -260,14 +257,14 @@ plt.plot(fsrq.Z, np.log10(g_band.Lmin))
 plt.title(r"$L_{\gamma}$ vs. $z$")
 
 #L_opt vs. z, just limited set
-plt.figure()
+plt.figure(figsize=(8,6))
 index = o_band.limited_indeces
 plt.plot(fsrq.Z[index], np.log10(o_band.L[index]), '.', markersize = 2, color = 'black')
 plt.plot(fsrq.Z[index], np.log10(o_band.Lmin[index]))
 plt.title(r"$L_{opt}$ vs. $z$ (optically-limited set only)")
 
 #L_gam vs. z, just limited set
-plt.figure()
+plt.figure(figsize=(8,6))
 index = g_band.limited_indeces
 plt.plot(fsrq.Z[index], np.log10(g_band.L[index]), '.', markersize = 2, color = 'black')
 nonindex = [i for i in range(len(fsrq.Z)) if o_band.L[i] == 0]
@@ -328,106 +325,111 @@ plt.savefig(figurepath + 'r-alpha.eps')
 for b in [fsrq.bands[0]]:
     i = b.limited_indeces
     L, Lmin = quas.localize(fsrq.Z[i], b.L[i], b.Lmin[i], b.k_g)
+#    L, Lmin = quas.localize(fsrq.Z[i], b.L[i], b.Lmin[i], 5.5)
     Z = fsrq.Z[i]
     
-#    plt.figure()
-#    plt.plot(fsrq.Z[i], np.log10(L), '.')
-#    plt.plot(fsrq.Z[i], np.log10(Lmin))
-    
-    CDF = np.array([quas.cdf(z, fsrq.Z[i], L, Lmin) for z in Z])
     plt.figure()
-    plt.plot(Z, np.log10(CDF), '.')
+    plt.semilogy(fsrq.Z[i], L, '.')
+    plt.semilogy(fsrq.Z[i], Lmin)
+    
+    CDF = np.array([quas.cdf(z, Z, L, Lmin) for z in Z])
+    plt.figure()
+    plt.loglog (1 + Z, CDF, '.')
     plt.title(r"Cumulative Density Function $\log(\sigma(z))$ for $L_{" + b.name + '}$')
+    plt.xlabel(r"$\log(Z = 1 + z)$")
+    plt.ylabel(r"$\log(\sigma)$")
+    plt.minorticks_on()
     
-    if b.name == 'g':
-        rho = np.array([quas.devolution(z, Z, CDF) for z in Z])
-        plt.figure()
-        plt.plot(Z, rho)
-        
-        plt.title(r"Density Evolution $\rho(z)$ for $L_{" + b.name + '}$')
-        
-        LDF = np.array([quas.ldf(Z[z], L, b.k_g, rho[z]) for z in range(len(Z))])
-        plt.figure()
-        plt.plot(Z, LDF)
-        plt.title(r"Luminosity Density Function \textsterling$(z)$ for $L_{" + b.name + '}$')
-    else: 
-        '''
-        i_split = 106 #split polyfit here
-        Z1 = Z[1:i_split]
-        p_1 = poly.polyfit(Z[1:i_split], np.log10(CDF[1:i_split]), 6)
-        p1 = lambda x: poly.polyval(x, p_1)
-        dp1 = lambda x: poly.polyval(x, poly.polyder(p_1))
-        cdf_fits1 = p1(Z1)
-        
-        Z2 = Z[i_split:]
-        p_2 = poly.polyfit(Z2, np.log10(CDF[i_split:]), 6)
-        p2 = lambda x: poly.polyval(x, p_2)
-        dp2 = lambda x: poly.polyval(x, poly.polyder(p_2))
-        cdf_fits2 = p2(Z2)
-        
-        plt.plot(Z1, cdf_fits1, Z2, cdf_fits2)
-        
-        rho1 = lambda x: 10**(p1(x)) * math.log(10) * dp1(x) / quas.dV_dz(x)
-        rho2 = lambda x: 10**(p2(x)) * math.log(10) * dp2(x) / quas.dV_dz(x)
-        '''
-        '''
-        incr = [j for j in range(1, len(Z) - 1) if Z[j] != Z[j + 1]]
-        Zfit = Z[incr]
-        CDFfit = CDF[incr]
+    #log-log fit
+    incr = [j for j in range(1, len(Z) - 1) if Z[j] != Z[j + 1]] #start at 1 for optical
+    Zfit = Z[incr]
+    CDFfit = CDF[incr]
+    w = np.hstack((np.zeros(10) + .5, np.arange(len(Zfit) - 10) + 1)) # first 10 at weight 0.5 for optical
+    fit = interp.UnivariateSpline(np.log10(1 + Zfit), np.log10(CDFfit), w, s = 1000)
+    dfit = fit.derivative()
+    
+    '''
+    p = poly.polyfit(np.log10(1 + Zfit), np.log10(CDFfit), 7)
+    fit = lambda x: poly.polyval(x, p)
+    dfit = lambda x: poly.polyval(x, poly.polyder(p))
+    '''
+    
+    logZcurve = np.arange(min(np.log10(1 + Zfit)), max(np.log10(1 + Zfit)), 0.02)
+    Zcurve = 10**logZcurve - 1
+    plt.loglog(1 + Zcurve, 10**fit(logZcurve))
     
     
-        fit = interp.UnivariateSpline(Zfit, CDFfit, s = 2000)
-        dfit = fit.derivative()
-        
-        plt.plot(np.arange(0.18, 3.1, 0.02), np.log10(fit(np.arange(0.18, 3.1, 0.02))))
-        
-        plt.figure()
-        plt.plot(Z, CDF, '.')
-        plt.plot(np.arange(0.18, 3.1, 0.02), fit(np.arange(0.18, 3.1, 0.02)))
-        
-        rho = [dfit(z) / quas.dV_dz(z) for z in Zfit]
-        '''
-        
+    #non log-log fit check
+    plt.figure()
+    plt.plot(Z, CDF, '.')
+    plt.plot(Zcurve, 10**fit(logZcurve))
+    plt.xlabel(r"$z$")
+    plt.ylabel(r"$\sigma(z)$")
+    plt.minorticks_on()
     
-        Zfit = Z[1:-5]
-        p = poly.polyfit(Zfit, np.log10(CDF[1:-5]), 10)
-        peval = lambda x: poly.polyval(x, p)
-        plt.plot(Zfit, peval(Zfit))
-        dpeval = lambda x: poly.polyval(x, poly.polyder(p))
-        rho_fit = lambda x: 10**(peval(x)) * math.log(10) * dpeval(x) / quas.dV_dz(x)
-        rho_fits = [rho_fit(z) for z in Zfit]
-
-        plt.figure()
-        plt.plot(Z, CDF, '.')
-        plt.plot(Zfit, 10**peval(Zfit))
+    def devolution(z):
+        Z = 1 + z
+        logZ = np.log10(Z)
+        sigma = 10**fit(logZ)
+        return dfit(logZ) * sigma / Z / quas.dV_dz(z)
+        
+    rho = [devolution(z) for z in Zfit]
+    plt.figure()
+    plt.plot(Zfit[1:], rho[1:], '.')
+    plt.title(r"Density Evolution $\rho(z)$ for $L_{" + b.name + '}$')
+    plt.xlabel(r"$z$")
+    plt.ylabel(r"$\rho(z)$")
+    plt.minorticks_on()
     
-        rho = np.array([quas.devolution(z, Z, CDF) for z in Zfit])
-#        rho_fits1 = [rho1(z) for z in Z1]
-#        rho_fits2 = [rho2(z) for z in Z2]
-        
-        plt.figure()
-        plt.plot(Zfit, rho)
-#        plt.plot(Z1, rho_fits1, Z2, rho_fits2)
-#        plt.plot(Z[1:-5], rho_fits)
-        
-        plt.title(r"Density Evolution $\rho(z)$ for $L_{" + b.name + '}$')
-        
-        LDF = np.array([quas.ldf(Zfit[z], L, b.k_g, rho[z]) for z in range(len(Zfit))])
-        plt.figure()
-        plt.plot(Zfit, LDF)
-        plt.title(r"Luminosity Density Function \textsterling$(z)$ for $L_{" + b.name + '}$')
+    '''
+    LDF = np.array([quas.ldf(Zfit[z], L, b.k_g, rho[z]) for z in range(len(Zfit))])
+    plt.figure()
+    plt.plot(Zfit, LDF, '.')
+    plt.title(r"Luminosity Density Function \textsterling$(z)$ for $L_{" + b.name + '}$')
+    '''
     
     CLF = np.array([quas.clf(l, fsrq.Z[i], L, Lmin) for l in L])
     plt.figure()
-    plt.plot(np.log10(L), np.log10(CLF), '.')
+    plt.loglog(L, CLF, '.')
     plt.title(r"Cumulative Luminosity Function $\Phi(L)$ for $L_{" + b.name + '}$')
+    plt.xlabel(r"$\log(L_{" + b.name + '})$')
+    plt.ylabel(r"$\log(\Phi(L_{" + b.name + '}))$')
+    plt.minorticks_on()
+    
+    Lfit = L[np.argsort(L)][2:]
+    CLFfit = CLF[np.argsort(L)][2:]
+    
+    fit = interp.UnivariateSpline(np.log10(Lfit), np.log10(CLFfit), s = 10)
+    dfit = fit.derivative()
+    
+    Lcurve = np.linspace(min(Lfit), max(Lfit), 100)
+    plt.loglog(Lcurve, 10**fit(np.log10(Lcurve)))
+    plt.minorticks_on()
     
     LF = np.array([quas.lf(l, L, CLF) for l in L])
+    LF = np.array([- 10**fit(np.log10(l)) * dfit(np.log10(l)) / l for l in Lfit])
     plt.figure()
-    plt.plot(np.log10(L), np.log10(LF), '.')
+    plt.loglog(Lfit[3:-1], LF[3:-1], '.')
     plt.title(r"Luminosity Function $\psi(L)$ for $L_{" + b.name + '}$')
+    plt.xlabel(r"$\log(L_{" + b.name + '}$)')
+    plt.ylabel(r"$\log(\psi(L_{" + b.name + '}))$')
+    plt.minorticks_on()
+    
+
+ # In[]: Various troubleshooting
+
+plt.figure() 
+plt.plot(Zfit, [quas.dV_dz(z) for z in Zfit], '.')
+plt.plot()
+
+plt.figure()
+plt.plot(np.log10(Fg), Gamma, '.')
+plt.gca().set_xlim([-12, -8.7])
+plt.gca().set_ylim([1, 3.5])
+
 
 #plt.figure()
 #i = np.where((o_band.L != 0) & (g_band.L != 0))
 #plt.plot(np.log10(o_band.L[i]), np.log10(g_band.L[i]), '.')
 #plt.gca().set_xlim([0, 10])
+    

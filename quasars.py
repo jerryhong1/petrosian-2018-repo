@@ -80,8 +80,8 @@ class QuasarData:
 
         print "band: " + b.name
         
-        if hasattr(self, 'sort_index'): #already sorted
-            self.sortband(band) #should just sort b.F out, unless others are already calculated.
+        if hasattr(self, 'sort_index'): # if QuasarData already sorted
+            self.sortband(band) # should just sort b.F out, unless others are already calculated.
             
         F = b.F
 
@@ -144,12 +144,11 @@ class QuasarData:
 #     prompts use for k array to determine k where tau = 0;
 #     saves this value of k, as well as the k-tau array for graphing
 #     finally, localizes luminosities and graphs alpha vs. rad
-    def correlation_analysis(self, bandname1, bandname2):
-        band1 = self.bands[np.where(bandname1 == np.array(self.bandnames))[0][0]]
-        band2 = self.bands[np.where(bandname2 == np.array(self.bandnames))[0][0]]
+    def correlation_analysis(self, band1, band2):
         band1.add_index(np.where((band1.Zmax < band2.Zmax) & (band1.Zmax != 0))[0])
         band2.add_index(np.where((band2.Zmax < band1.Zmax) & (band2.Zmax != 0))[0])
 
+        '''
         plt.figure()
         index = band1.limited_indeces
         plt.plot(self.Z[index], np.log10(band1.L[index]), '.', markersize = 2)
@@ -160,7 +159,7 @@ class QuasarData:
         plt.plot(self.Z[index], np.log10(band2.L[index]), '.', markersize = 2)
         plt.plot(self.Z[index], np.log10(band2.Lmin[index]))
 
-    
+        '''    
         self.tauvsk(band1, band2)
         self.tauvsk(band2, band1)
 
@@ -201,8 +200,8 @@ class QuasarData:
         L_l1, foo = localize(self.Z[i], band1.L[i], band1.Lmin[i], band1.k_g)
         L_l2, foo = localize(self.Z[i], band2.L[i], band2.Lmin[i], band2.k_g)
         
-        plt.figure()
-        plt.plot(np.log10(L_l1), np.log10(L_l2), '.', markersize = 2)
+#        plt.figure()
+#        plt.plot(np.log10(L_l1), np.log10(L_l2), '.', markersize = 2)
         
         Alpha = np.arange(0,1,0.005)
         R = rvsalpha(L_l1, L_l2, Alpha)
@@ -213,7 +212,7 @@ class Band:
     def __init__(self, bandname, fmin, F, k_correction):
         self.name = bandname
         self.fmin = fmin
-        self.F = F
+        self.F = np.array(F)
         self.kcorr = k_correction
 #        self.L = []
 #        self.Lmin = []
@@ -261,7 +260,9 @@ class Band:
 
 
 ################################################################################
+################################################################################
 #### MISCELLANEOUS, IMPORTANT FUNCTIONS
+################################################################################
 ################################################################################
     
 # luminosity distance in cm. assume the standard ΛCDM cosmology: 
@@ -289,7 +290,7 @@ def magtoflux(m,f0):
 
 #Band to band conversion (SDSS bands): all wavelengths reported in angstroms
 alpha_opt = -0.5    
-alpha_opt = -0.6
+alpha_rad = -0.6
 lambda_v = 5510. 
 lambda_r = 6231.
 lambda_i = 7625
@@ -314,7 +315,6 @@ Z_k = [float(z) for z in Z_k]
 K = [float(k) for k in K]
 
 #print K, Z_k
-alpha_opt = -0.5
 def k_opt(z): #with sign convention: m_intrinsic = m_obs - K, and L = 4 pi d^2 f/k(z)
     k_avg = -2.5 * (1 + alpha_opt) * math.log10(1 + z)
     if (z > max(Z_k)):
@@ -360,8 +360,7 @@ def g(z, k):
     return (1 + z)**k /(1 + ((1 + z) / z_cr)**k)
 
 def g_(z, k):
-    z_cr = 2.5
-    return (1 + z)**k /(1 + ((1 + z) / z_cr)**k)
+    return (1 + z)**k
 
 
 def localize(Z, L, Lmin, k):
@@ -408,7 +407,7 @@ def cdf(z, Z, L, Lmin):
 #rate of change of co-moving volume w.r.t. redshift
 dV_dz = lambda z: 4 * math.pi * (r_comoving(z) ** 2) * cH0 * integrand(z, Omega_l, Omega_m)  # units of cm^3
 
-# density evolution function: 
+# density evolution function (the ratchet way): 
 def devolution(z, Z, CDF):
     dsdz = np.interp(z, Z, np.gradient(CDF, Z))
     dVdz = dV_dz(z)
@@ -430,7 +429,7 @@ def clf(l, Z, L, Lmin):
             phi = phi * (1. + 1. / size)
     return phi
 
-# luminosity function
+# luminosity function (the ratchet way)
 def lf(l, L, CLF):
     return -np.interp(l, L, np.gradient(CLF, L))
     

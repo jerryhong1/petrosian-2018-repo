@@ -123,16 +123,16 @@ print '\n'
 
 #L vs z
 plt.figure(1, figsize=(10,8))
-plt.plot(sdss.Z, np.log10(opt_band.L),'.', markersize=1, label="my data", color='black')
-plt.plot(sdss_trunc.Z, np.log10(opt_band_trunc.L),'.', markersize=1, label="truncated", color='#40E0D0')
+plt.semilogy(sdss.Z, opt_band.L,'.', markersize=1, label="my data", color='black')
+plt.plot(sdss_trunc.Z, opt_band_trunc.L,'.', markersize=1, label="truncated", color='#40E0D0')
 #plt.plot(sdss.Z, np.log10(opt_band.Lmin),'-', linewidth = 2, label="min values", color='red')
 
 #Lmin, Lmax vs z
 z_graph = np.arange(0.01,5.5,0.05) 
 Lmin_graph = [opt_band.min_luminosity(z) for z in z_graph]
 Lmax_graph = [opt_band.luminosity(z, i_to_opt(magtoflux(15))) for z in z_graph]
-plt.plot(z_graph, np.log10(Lmin_graph),'-', markersize=3, label="max values", color='red')
-plt.plot(z_graph, np.log10(Lmax_graph),'-', markersize=3, label="max values", color='red')
+plt.semilogy(z_graph, Lmin_graph,'-', markersize=3, label="max values", color='red')
+plt.semilogy(z_graph, Lmax_graph,'-', markersize=3, label="max values", color='red')
 
 #associated set (see above cell)
 #plt.plot(Z_ass, np.log10(L_ass),'.', markersize=1, label="associated set for source", color='red')
@@ -140,12 +140,12 @@ plt.plot(z_graph, np.log10(Lmax_graph),'-', markersize=3, label="max values", co
 
 #labeling
 plt.xlabel("$z$", fontsize = 18)
-plt.ylabel("$\log(L_{opt})$ (erg s$^{-1}$ Hz$^{-1}$)", fontsize = 18)
-plt.title("$\log(L)$ at 2500 A vs.\ $z$ for SDSS DR7 Quasar Set", fontsize = 16)
+plt.ylabel("$L_{opt}$ (erg s$^{-1}$ Hz$^{-1}$)", fontsize = 18)
+plt.title("$L_{opt}$ at 2500 A vs.\ $z$ for SDSS DR7 Quasar Set", fontsize = 16)
 #plt.legend(loc = "upper right")
 axes = plt.gca()
 axes.set_xlim([0,6])
-axes.set_ylim([29,33])
+axes.set_ylim([1e29,1e33])
 plt.minorticks_on()
 plt.savefig("../figures/SDSSlogLz.png")
 plt.show()
@@ -153,41 +153,41 @@ plt.show()
 # In[13.5] Plot demonstrating associated set
 #L vs z
 plt.figure(4, figsize=(10,8))
-plt.plot(sdss.Z, np.log10(opt_band.L),'.', markersize=1, label="my data", color='black')
+plt.semilogy(sdss.Z, opt_band.L,'.', markersize=1, label="my data", color='black')
 
 #Lmin vs z
-plt.plot(z_graph, np.log10(Lmin_graph),'-', markersize=3, label="max values", color='red')
+plt.semilogy(z_graph, Lmin_graph,'-', markersize=3, label="max values", color='red')
 
 #associated set (see above cell)
 lmin = opt_band.Lmin[i]
-plt.plot(Z_ass, np.log10(L_ass),'.', markersize=1, label="associated set for source", color='#900000')
-plt.plot(Z_ass[-1], np.log10(L_ass[-1]), '.', markersize=12, label="source", color = 'red')
-plt.plot([0,Z_ass[-1]], np.log10([lmin, lmin]), linewidth = 1, color = 'red')
-plt.plot([Z_ass[-1],Z_ass[-1]], np.log10([lmin ,1e40]), linewidth = 1, color = 'red')
+plt.semilogy(Z_ass, L_ass,'.', markersize=1, label="associated set for source", color='#900000')
+plt.semilogy(Z_ass[-1], L_ass[-1], '.', markersize=12, label="source", color = 'red')
+plt.semilogy([0,Z_ass[-1]], [lmin, lmin], linewidth = 1, color = 'red')
+plt.semilogy([Z_ass[-1],Z_ass[-1]], [lmin ,1e40], linewidth = 1, color = 'red')
 
 #labeling
 plt.xlabel("$z$", fontsize = 18)
-plt.ylabel("$\log(L_{opt})$ (erg s$^{-1}$ Hz$^{-1}$)", fontsize = 18)
+plt.ylabel("$L_{opt}$ (erg s$^{-1}$ Hz$^{-1}$)", fontsize = 18)
 #plt.title("$\log(L)$ at 2500 A vs.\ $z$ for SDSS DR7 Quasar Set", fontsize = 16)
 #plt.legend(loc = "upper right")
 axes = plt.gca()
-axes.text(0.5*(Z_ass[-1]), 0.5*(np.log10(lmin) + 33), 
+axes.text(0.5*(Z_ass[-1]), 10**(0.5*(np.log10(lmin) + 33)), 
         r'\begin{center} $\textbf{Associated}$ \\ $\textbf{Set}$ \end{center}',
         horizontalalignment='center',
         verticalalignment='center', 
         color = 'red', fontsize = 25)
-axes.text(Z_ass[-1] + 0.05, np.log10(opt_band.L[i]), r'$\textbf{Source}$',
+axes.text(Z_ass[-1] + 0.07, opt_band.L[i], r'$\textbf{Source}$',
         horizontalalignment='left',
         verticalalignment='center', 
         color = 'white', fontsize = 20)
 
 axes.set_xlim([0,5])
-axes.set_ylim([29,33])
+axes.set_ylim(np.array([1e29,1e33]))
 plt.minorticks_on()
-#plt.savefig("../figures/AssociatedSet.png")
+plt.savefig("../figures/AssociatedSet.png")
 plt.show()
 
-# In[15]: Local Luminosity creation, given k:
+ # In[15]: Local Luminosity creation, given k:
 
 #g(z) such that L' = L/g(z). Taken from Singal et al. (2013) and considers high-redshift objects.
 def g(z, k):
