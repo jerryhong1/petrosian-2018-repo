@@ -9,9 +9,6 @@ import numpy as np
 import quasars as quas
 from quasars import QuasarData, Band
 import matplotlib.pyplot as plt
-import math
-import scipy.interpolate as interp
-import numpy.polynomial.polynomial as poly
 plt.rc('text', usetex=True)
 plt.rc('font', family='serif')
 

@@ -69,7 +69,7 @@ class QuasarData:
                     
             print "\n"
             
-    def addband(self, band): #or, overwrite.
+    def addband(self, band, alreadySorted): #or, overwrite.
         b = band
         Z = self.Z
         
@@ -80,7 +80,7 @@ class QuasarData:
 
         print "band: " + b.name
         
-        if hasattr(self, 'sort_index'): # if QuasarData already sorted
+        if hasattr(self, 'sort_index') and not alreadySorted: # if QuasarData already sorted
             self.sortband(band) # should just sort b.F out, unless others are already calculated.
             
         F = b.F
@@ -119,8 +119,8 @@ class QuasarData:
             self.Z = self.Z[index]
             print index
 
-        for b in self.bands:
-            self.sortband(b)
+            for b in self.bands:
+                self.sortband(b)
             
     def sortband(self, band):
         i = self.sort_index
@@ -283,6 +283,8 @@ def d_lum(z):
 
 # Convert magnitudes to fluxes (in cgs). see Abazajian et al. (2009) §3.3
 # (multiply Jy by e-23 to get cgs: ergs/s/cm^2/Hz)
+f0_i = 3.631e-20  # from SDSS paper (2010)
+f0_v = 3.8363e-20  # works for USNO?
 def magtoflux(m,f0):
 #    f0 = 3.631e-20 value for i band, Singal (2013)
     return f0*10**(-m/2.5)
@@ -397,7 +399,7 @@ def cdf(z, Z, L, Lmin):
     for i in range(len(Z)):
         #create associated sets
         if Z[i] > z: continue
-        j = [m for m in range(0, len(Z)) if (L[m] > Lmin[i] and Z[m] < Z[i])] # and Lmin[m] < Lmin[i])] #see petrosian
+        j = [m for m in range(len(Z)) if (L[m] > Lmin[i] and Z[m] < Z[i])] # and Lmin[m] < Lmin[i])] #see petrosian
         size = len(j)
         if size > 0:
             sigma = sigma * (1. + 1. / size)
@@ -418,12 +420,12 @@ def ldf(z, L_local, k, rho):
     return sum(L_local) / len(L_local) * g(z, k) * rho * dV_dz(z)
 
 # cumulative luminosity function
-def clf(l, Z, L, Lmin):
+def clf(l, Z, L, Zmax):
     phi = 1
     for i in range(len(Z)):
         if L[i] < l: continue
-        # note that luminosity must be greater than L[i], not Lmin[i]
-        j = [m for m in range(0, len(Z)) if (L[m] > L[i] and Z[m] < Z[i])] 
+        # associated set now defined differently
+        j = [m for m in range(len(Z)) if (L[m] > L[i] and Z[m] < Zmax[i])] 
         size = len(j)
         if size > 0:
             phi = phi * (1. + 1. / size)
@@ -432,4 +434,11 @@ def clf(l, Z, L, Lmin):
 # luminosity function (the ratchet way)
 def lf(l, L, CLF):
     return -np.interp(l, L, np.gradient(CLF, L))
-    
+
+# cumulative luminosity function (ignoring truncation) 
+def N_L(l, Z, L):
+    return len(np.where(L >= l)[0])
+
+# cumulative density function (ignoring truncation) 
+def N_z(z, Z, L):
+    return len(np.where(Z <= z)[0])
