@@ -117,7 +117,7 @@ class QuasarData:
             index = np.argsort(self.Z)
             self.sort_index = index # save index for later bands to be automatically sorted.
             self.Z = self.Z[index]
-            print index
+#            print index
 
             for b in self.bands:
                 self.sortband(b)
@@ -196,12 +196,14 @@ class QuasarData:
 
     def rvsalpha(self, band1, band2):
         i = np.where((band1.L != 0) & (band2.L != 0))[0]
-        print i
+#        print i
         L_l1, foo = localize(self.Z[i], band1.L[i], band1.Lmin[i], band1.k_g)
         L_l2, foo = localize(self.Z[i], band2.L[i], band2.Lmin[i], band2.k_g)
         
-#        plt.figure()
-#        plt.plot(np.log10(L_l1), np.log10(L_l2), '.', markersize = 2)
+        plt.figure()
+        plt.plot(np.log10(L_l1), np.log10(L_l2), '.', markersize = 2)
+        plt.xlabel(r'$L_' + band1.name + '$')
+        plt.ylabel(r'$L_' + band2.name + '$')
         
         Alpha = np.arange(0,1,0.005)
         R = rvsalpha(L_l1, L_l2, Alpha)
@@ -316,8 +318,11 @@ for line in f:
 Z_k = [float(z) for z in Z_k]
 K = [float(k) for k in K]
 
-#print K, Z_k
-def k_opt(z): #with sign convention: m_intrinsic = m_obs - K, and L = 4 pi d^2 f/k(z)
+#simple k correction
+def kcorrect(z, alpha):
+    return (1 + z)**(1 + alpha)
+
+def kcorrect_opt(z): #with sign convention: m_intrinsic = m_obs - K, and L = 4 pi d^2 f/k(z)
     k_avg = -2.5 * (1 + alpha_opt) * math.log10(1 + z)
     if (z > max(Z_k)):
         k = k_avg  #assume no emission line effect
@@ -402,8 +407,7 @@ def cdf(z, Z, L, Lmin):
         j = [m for m in range(len(Z)) if (L[m] > Lmin[i] and Z[m] < Z[i])] # and Lmin[m] < Lmin[i])] #see petrosian
         size = len(j)
         if size > 0:
-            sigma = sigma * (1. + 1. / size)
-            
+            sigma = sigma * (1. + 1. / size)       
     return sigma
     
 #rate of change of co-moving volume w.r.t. redshift
