@@ -1,31 +1,23 @@
 #!/usr/bin/env python2
 # -*- coding: utf-8 -*-
 
-# blazars from the 3LAC catalog, with gamma data from 3FGL catalog and some optical data from SDSS DR6.
+# blazars from the 3LAC catalog, with gamma data from 3FGL catalog and some optical data from SDSS DR6 and other from USNO-B.
 # in particular, we analyze the ~400 fsrq's out of the 3LAC catalog.
 
 
-# In[0]: read and parse data; 999 sources with known redshift
+# In[0]: Packages, read and parse data; 999 sources with known redshift
 from __future__ import division
 import csv
 import numpy as np
 import quasars as quas
 from quasars import QuasarData, Band
 import matplotlib.pyplot as plt
-import math
 import scipy
 import scipy.interpolate as interp
 import numpy.polynomial.polynomial as poly
 from astropy.modeling import models, fitting
-plt.rc('text', usetex=True)
-plt.rc('font', family='serif', size = 14)
-plt.rcParams['figure.figsize'] = (8.0, 6.0)
-plt.rcParams['xtick.direction'] = 'in'
-plt.rcParams['ytick.direction'] = 'in'
-plt.rcParams['xtick.top'] = 'true'
-plt.rcParams['ytick.right'] = 'true'
-plt.rcParams['errorbar.capsize'] =  2
-
+#plt.style.use('mystyle.mplstyle')
+plt.style.use('poster.mplstyle')
 
 names = [] # 3FGL names
 cnames = [] #companion name
@@ -36,6 +28,8 @@ RadTag = [] # radio flux source
 V_USNO = [] # optical V magnitudes
 V_SDSS = [] # optical V magnitudes
 I_missing = [] # optical I magnitudes to be filled in
+Fg = [] # gamma ray energy flux over 100 MeV–100 GeV
+Gamma = [] # spectral indeces
 
 file_begin = 60
 with open('3lac_high.tsv') as tsv:
@@ -58,7 +52,7 @@ with open('3lac_high.tsv') as tsv:
 #                    print line[2]
         i = i + 1
 
-# pull data from the larger catalog
+# pull gamma ray data and spectral index from the 3FGL catalog
 names_3fgl = []
 Fg_3fgl = []
 Gamma_3fgl = []
@@ -73,14 +67,12 @@ with open('3fgl.tsv') as tsv:
             Gamma_3fgl.append(line[14])
         i = i + 1
 
-Fg = [] # 
-Gamma = [] # spectral indeces
 for i in range(len(names)):
     index = [j for j in range(len(names_3fgl)) if names[i] in names_3fgl[j]][0]
     Fg.append(Fg_3fgl[index])
     Gamma.append(Gamma_3fgl[index])
     
-# pull out SDSS i-band optical data (for ALL sources, not just those that are missing it)
+# from NED, pull out SDSS i-band optical data (for ALL sources, not just those that are missing it)
 file = open("3lac_high_opt_all.txt","r")
 lines = file.readlines()
 file.close()
@@ -116,44 +108,33 @@ Fx = str2float(Fx)
 V_USNO = str2float(V_USNO)
 V_SDSS = str2float(V_SDSS)
 Fg = str2float(Fg) 
-Fg = Fg * 1e-12 #over 100 MeV–100 GeV, erg cm−2 s−1, from power-law fit, 1 decimal place
+Fg = Fg * 1e-12 #convert to cgs from 1e-12 cgs (lol)
 Fr = Fr * 1e-26 #convert from mJy to cgs
 Gamma = str2float(Gamma)
 I_missing = np.array(I_missing)
-#z_index = np.nonzero(Z)[0] #indeces where Z is known; will create a quasar object based on it
 
-# In[]: radio band: doesn't really matter, except to correlate with gamma
+# In[2]: radio band: doesn't really matter, except to correlate with gamma
 fmin_r = 2.5e-26 #NVSS data only
 k_radio = lambda z: quas.kcorrect(z, quas.alpha_rad)
-r_band = Band('r', fmin_r, Fr, k_radio)
+r_band = Band('rad', fmin_r, Fr, k_radio)
 
-# In[3]: Gamma band: for Lmin, Zmax assuming average value for photon spectral index. 
+# In[3]: Gamma band: assume average value for photon spectral index.
 fmin_g = 3e-12 # see 3LAC paper
 Gamma_g = 2.44
 alpha_g = 1 - Gamma_g
 k_gamma = lambda z: quas.kcorrect(z, alpha_g)
 
-def g_lum(z, f, gamma):
-    alpha_g = gamma - 1    
-    kc = (1 + Z[i])**(1 - alpha_g)
-    return 4 * math.pi * (quas.d_lum(z)**2) * f / kc
-
-#L = np.array([g_lum(Z[i], Fg[i], Gamma[i]) for i in range(len(Gamma))])
 Fg = np.array([f if f > fmin_g else 0. for f in Fg ])
 g_band = Band('\gamma', fmin_g, Fg, k_gamma)
-#g_band.set_luminosity(L)
 fsrq = QuasarData(Z, [g_band, r_band])
 fsrq.sort()
 
-# truncate everything below L = 1e45
-trunc_index = np.where(g_band.L < 1e45)[0]
-truncate = lambda A: np.array([A[i] if 1e45 < g_band.L[i] else 0.0 for i in range(len(A))])
-#g_band.set_zmax(truncate(g_band.Zmax))
-#g_band.set_luminosity(truncate(g_band.L))
-#g_band.set_min_luminosity(truncate(g_band.Lmin))
+# In[3.5]: TEST Gamma band: account for individual spectral indeces
+def g_lum(z, f, gamma):
+    alpha_g = gamma - 1    
+    kc = (1 + Z[i])**(1 - alpha_g)
+    return 4 * np.pi * (quas.d_lum(z)**2) * f / kc
 
-
-# In[3]: Gamma band: defining a different Lmin for each source
 L = np.array([g_lum(Z[i], Fg[i], Gamma[i]) for i in range(len(Gamma))])
 Lmin = np.array([g_lum(Z[i], fmin_g, Gamma[i]) for i in range(len(Gamma))])
 Lmin_avg = np.array([g_lum(Z[i], fmin_g, 2.44) for i in range(len(Gamma))])
@@ -177,8 +158,7 @@ plt.plot(range(40, 50), range(40, 50))
 plt.xlabel('Lmin')
 plt.ylabel('L')
 
-
-# In[]: The monotonicity problem
+# In[]: A demonstration of the monotonicity problem
 
 w = [i for i in range(len(fsrq.Z)) if Z[i] != 0 and L[i] != 0]
 Zl = Z[w]
@@ -256,7 +236,7 @@ F_SDSS = F
 k_opt_USNO = lambda z: quas.kcorrect(z, quas.alpha_opt)
 
 o_USNO = Band('USNO', fmin_USNO, F_USNO, k_opt_USNO)
-o_SDSS = Band('SDSS', fmin_SDSS, F_SDSS, quas.kcorrect_opt)
+o_SDSS = Band('SDSS', fmin_SDSS, F_SDSS, quas.kcorrect_SDSS)
 
 fsrq_o = QuasarData(Z, [o_USNO, o_SDSS])
 fsrq_o.sort()
@@ -269,36 +249,41 @@ plt.semilogy(fsrq_o.Z, o_SDSS.L, '.', markersize = 2, color = 'red')
 plt.semilogy(fsrq_o.Z, o_SDSS.Lmin, color = 'red')
 
 def merge(attr):
+    SDSS_index = []
+    USNO_index = []
     a = []
     for i in range(len(fsrq_o.Z)):
         if o_SDSS.__dict__['L'][i] != 0.0 :
+            SDSS_index.append(i)
             a.append(o_SDSS.__dict__[attr][i])
-        else: a.append(o_USNO.__dict__[attr][i])
+        else: 
+            a.append(o_USNO.__dict__[attr][i])
+            USNO_index.append(i)
     return np.array(a)
 
-Zmax = merge('Zmax')
-L = merge('L')
-Lmin = merge('Lmin')
+Zmax_o = merge('Zmax')
+L_o = merge('L')
+Lmin_o = merge('Lmin')
 
 # truncate:
-trunc_index = np.where(Lmin > L)[0]
-o_band_trunc = Band('o', None, None, None)
-o_band_trunc.set_zmax(Zmax[trunc_index])
-o_band_trunc.set_luminosity(L[trunc_index])
-o_band_trunc.set_min_luminosity(Lmin[trunc_index])
+trunc_index = np.where(Lmin_o > L_o)[0]
+o_band_trunc = Band('opt', None, None, None)
+o_band_trunc.set_zmax(Zmax_o[trunc_index])
+o_band_trunc.set_luminosity(L_o[trunc_index])
+o_band_trunc.set_min_luminosity(Lmin_o[trunc_index])
 
 
-truncate = lambda A: np.array([A[i] if Lmin[i] < L[i] else 0.0 for i in range(len(A))])
-Zmax = truncate(Zmax)
-L = truncate(L)
+truncate = lambda A: np.array([A[i] if Lmin_o[i] < L_o[i] else 0.0 for i in range(len(A))])
+Zmax_o = truncate(Zmax_o)
+L_o = truncate(L_o)
 
-plt.semilogy(fsrq_o.Z, L, '.', color = 'blue')
-plt.semilogy(fsrq_o.Z, Lmin, color = 'blue')
+plt.semilogy(fsrq_o.Z, L_o, '.', color = 'blue')
+plt.semilogy(fsrq_o.Z, Lmin_o, color = 'blue')
 
 o_band = Band('o', None, None, None)
-o_band.set_zmax(Zmax)
-o_band.set_luminosity(L)
-o_band.set_min_luminosity(Lmin)
+o_band.set_zmax(Zmax_o)
+o_band.set_luminosity(L_o)
+o_band.set_min_luminosity(Lmin_o)
 
 fsrq.addband(o_band, True) #true = already sorted
 fsrq.addband(o_SDSS, True)
@@ -313,53 +298,69 @@ fsrq_trunc = QuasarData(fsrq_o.Z[trunc_index], [o_band_trunc])
 Alpha, R = fsrq.correlation_analysis(o_band, g_band)
 # k_opt ≈ 3.5, k_gamma ≈ 5.5
 
-r_band.set_k(4.8)
-g_band.set_k(4.0)
+r_band.set_k(4.8) # from sdssfirst analysis 
+#g_band.set_k(4.0)
 Alpha_rg, R_rg = fsrq.rvsalpha(r_band, g_band)
 
 # In[5]: Plots
 figurepath = '../figures/fermi3lac-fsrq/'
 
 # L_opt vs. z
-plt.figure(figsize=(8,6))
+plt.figure()
 ax = plt.gca()
 ax.set_yscale("log", nonposy='clip')
 index = [i for i in range(len(fsrq.Z)) if o_band.L[i] != 0 and g_band.L[i] != 0]
-plt.errorbar(fsrq.Z[index], o_band.L[index],
-             yerr = [o_band.L[index] - o_band.Lmin[index], np.zeros(len(fsrq.Z[index]))],
-             fmt = 'o', markersize = 3, elinewidth = 0.3, color = 'black')
-j = [i for i in range(len(fsrq_trunc.Z)) if o_band_trunc.L[i]]
-plt.errorbar(fsrq_trunc.Z[j], o_band_trunc.L[j], capsize = 1,
-             yerr = [np.zeros(len(fsrq_trunc.Z[j])), o_band_trunc.Lmin[j] - o_band_trunc.L[j]],
-             fmt = 'o', markersize = 2, elinewidth = 0.3, color = 'red')
+plt.plot(fsrq.Z[index], o_band.L[index], '.', color = 'black', markersize = 3)
+samp = index[::9]
+plt.errorbar(fsrq.Z[samp], o_band.L[samp],
+             yerr = [o_band.L[samp] - o_band.Lmin[samp], np.zeros(len(fsrq.Z[samp]))],
+             fmt = 'o', markersize = 3, elinewidth = 0.8, color = 'black')
+Z_Lmin = np.arange(0.01, 3.2, 0.1) #for Lmin
+Lmin_USNO = [o_USNO.min_luminosity(z) for z in Z_Lmin]
+Lmin_SDSS = [o_SDSS.min_luminosity(z) for z in Z_Lmin]
+plt.plot(Z_Lmin, Lmin_USNO, '--', color = 'red', linewidth = 1)
+plt.plot(Z_Lmin, Lmin_SDSS, '--', color = 'red', linewidth = 1)
 plt.title(r"$L_{opt}$ vs. $z$")
+plt.xlabel("$z$")
+plt.ylabel("$L_{opt}$ (erg s$^{-1}$ Hz$^{-1}$)")
+plt.savefig(figurepath + '/fsrq-Lopt-z.eps')
 
 # L_gam vs. z
-plt.figure(figsize=(8,6))
+plt.figure(figsize = (8.5,8))
 plt.semilogy(fsrq.Z[index], g_band.L[index], '.', markersize = 3, color = 'black')
 nonindex = [i for i in range(len(fsrq.Z)) if o_band.L[i] == 0]
-plt.semilogy(fsrq.Z[nonindex], g_band.L[nonindex], '.', markersize = 2, color = 'red')
-plt.semilogy(fsrq.Z[index], g_band.Lmin[index])
-plt.title(r"$L_{\gamma}$ vs. $z$")
+plt.semilogy(fsrq.Z[nonindex], g_band.L[nonindex], '.', markersize = 2, color = '#ff8989')
+plt.semilogy(fsrq.Z[index], g_band.Lmin[index], color = 'red')
+plt.title(r"$L_{\gamma}$ vs. $z$ for FERMI 3LAC FSRQs")
+plt.xlabel("$z$")
+plt.ylabel("$L_{\gamma}$ (erg s$^{-1}$)")
+plt.savefig(figurepath + '/fsrq-Lgam-z.eps')
 
 # L_opt vs. z, just limited set
-plt.figure(figsize=(8,6))
+plt.figure()
 ax = plt.gca()
 ax.set_yscale("log", nonposy='clip')
 index = o_band.limited_indeces
 plt.errorbar(fsrq.Z[index], o_band.L[index], 
              yerr = [o_band.L[index] - o_band.Lmin[index], np.zeros(len(fsrq.Z[index]))],
              fmt = 'o', markersize = 3, linewidth = 0.5, color = 'black')
+plt.plot(Z_Lmin, Lmin_USNO, '--', color = 'red', linewidth = 1)
+plt.plot(Z_Lmin, Lmin_SDSS, '--', color = 'red', linewidth = 1)
 plt.title(r"$L_{opt}$ vs. $z$ (optically-limited set only)")
+plt.xlabel("$z$")
+plt.ylabel("$L_{opt}$ (erg s$^{-1}$ Hz$^{-1}$)")
+plt.savefig(figurepath + '/fsrq-Lopt-z-limited.eps')
 
 # L_gam vs. z, just limited set
-plt.figure(figsize=(8,6))
+plt.figure()
 index = g_band.limited_indeces
-plt.semilogy(fsrq.Z[index], g_band.L[index], '.', markersize = 2, color = 'black')
+plt.semilogy(fsrq.Z[index], g_band.L[index], '.', markersize = 3, color = 'black')
 nonindex = [i for i in range(len(fsrq.Z)) if o_band.L[i] == 0]
-plt.semilogy(fsrq.Z[index], g_band.Lmin[index])
+plt.semilogy(fsrq.Z[index], g_band.Lmin[index], color = 'red')
 plt.title(r"$L_{\gamma}$ vs. $z$ (gamma-limited set only)")
-
+plt.xlabel("$z$")
+plt.ylabel("$L_{\gamma}$ (erg s$^{-1}$)")
+plt.savefig(figurepath + '/fsrq-Lgam-z-limited.eps')
 
 # tau vs k
 sigma = [-1, 1]
@@ -369,70 +370,66 @@ for b in [fsrq.bands[0]]: #just gamma
     k_g = b.k_g
 
     plt.figure()
-    plt.title(r"$\tau$ vs $k_{" + b.name + "}$")
+    plt.title(r"$\tau$ vs $k_{" + b.name + "}$, 3LAC FSRQs")
     plt.plot(Ks, Taus)
     axes = plt.gca()
     axes.set_xlim([min(Ks), max(Ks)])
     axes.set_ylim([-3,3])
-    plt.xlabel(r"$k_{" + b.name + "}$", fontsize = 14)
-    plt.ylabel(r"$\tau$", fontsize = 14)
-    plt.minorticks_on()         
+    plt.xlabel(r"$k_{" + b.name + "}$")
+    plt.ylabel(r"$\tau$")
 
     plt.plot(np.arange(0, 10), np.zeros(10), color = 'black')
     plt.plot(np.arange(0, 10), np.zeros(10) + 1, '--', color = 'black', linewidth=1)
     plt.plot(np.arange(0, 10), np.zeros(10) - 1, '--', color = 'black', linewidth=1)
 
     plt.plot([k_g, k_g], [-4, 0], color = 'red', linewidth = 1)
-    plt.text(k_g + 0.01, 0.1, r"$k_{" + b.name + "} = $" + str(round(k_g, 2)), color = 'red', fontsize = 14)
-    k_raderr = [np.interp(i, -Taus, Ks) for i in sigma]
-    plt.plot([k_raderr[0], k_raderr[0]], [-4, 1], '--', color = 'red', linewidth = 0.5)
-    plt.plot([k_raderr[1], k_raderr[1]], [-4, -1], '--', color = 'red', linewidth = 0.5)
+    k_err = [np.interp(i, -Taus, Ks) for i in sigma]
+    plt.text(k_g + 0.01, 0.1, r"$k_{" + b.name + "} = " + str(round(k_g, 2)) 
+        + '^{ + ' + str(round(k_err[1] - k_g, 2)) + '}_{' + str(round(k_err[0] - k_g, 2)) + '}$' ,
+        color = 'red', fontsize = 24)
+    plt.plot([k_err[0], k_err[0]], [-4, 1], '--', color = 'red', linewidth = 0.5)
+    plt.plot([k_err[1], k_err[1]], [-4, -1], '--', color = 'red', linewidth = 0.5)
     
-    plt.savefig(figurepath + '/tauvsk-fsrq-' + b.name + '.eps')
+    plt.savefig(figurepath + '/fsrq-tauvsk-' + b.name + '.eps')
     plt.show()
     
-# In[]: Plots con't: alpha vs r
+ # In[]: Plots con't: alpha vs r
 o_band.set_k(3.5)
 Alpha, R = fsrq.rvsalpha(o_band, g_band)
 
-plt.figure()
+plt.figure(figsize = (5,5))
 plt.plot(Alpha, R, color = 'black', linewidth = 1)
-#plt.plot(Alpha[::10], R[::10], marker = '.', markersize = 8)
 alpha = np.interp(0, -np.array(R), Alpha)
 plt.plot([alpha, alpha], [-4, 0], color = 'red', linewidth = 1)
 plt.ylabel(r"Correlation Coefficient")
 plt.xlabel(r"$\alpha$")
-plt.title(r"Correlation of $L_{cr}^{\prime\; \gamma} = L_{\gamma}'(L_0/L_{opt}')^\alpha$ vs. $L_{opt}'$")
-plt.text(alpha + 0.02, 0.01, r"$\alpha = $ " + str(round(alpha, 2)), color = 'red', fontsize = 14)
+#plt.title(r"Correlation of $L_{cr}^{\prime\; \gamma} = L_{\gamma}'(L_0/L_{opt}')^\alpha$ vs. $L_{opt}'$")
+plt.title(r"Gamma-Optical Correlation", fontsize = 20) # for poster
+plt.text(alpha + 0.02, 0.01, r"$\alpha = $ " + str(round(alpha, 2)), color = 'red', fontsize = 30)
 
 axes = plt.gca()
 plt.plot(np.arange(-1, 3), np.zeros(4), color = 'black', linewidth = 1)
 axes.set_xlim([min(Alpha), 1])
 axes.set_ylim([min(R), max(R)])
-plt.minorticks_on()
 plt.savefig(figurepath + 'r-alpha-og.eps')
 
 
 Alpha, R = Alpha_rg, R_rg
-plt.figure()
+plt.figure(figsize = (5,5))
 plt.plot(Alpha, R, color = 'black', linewidth = 1)
-#plt.plot(Alpha[::10], R[::10], marker = '.', markersize = 8)
 alpha = np.interp(0, -np.array(R), Alpha)
 plt.plot([alpha, alpha], [-4, 0], color = 'red', linewidth = 1)
 plt.ylabel(r"Correlation Coefficient")
 plt.xlabel(r"$\alpha$")
-plt.title(r"Correlation of $L_{cr}^{\prime\; \gamma} = L_{\gamma}'(L_0/L_{rad}')^\alpha$ vs. $L_{rad}'$")
-plt.text(alpha + 0.02, 0.01, r"$\alpha = $ " + str(round(alpha, 2)), color = 'red', fontsize = 14)
+#plt.title(r"Correlation of $L_{cr}^{\prime\; \gamma} = L_{\gamma}'(L_0/L_{rad}')^\alpha$ vs. $L_{rad}'$")
+plt.title(r"Gamma-Radio Correlation", fontsize = 20) # for poster
+plt.text(alpha + 0.02, 0.01, r"$\alpha = $ " + str(round(alpha, 2)), color = 'red', fontsize = 30)
 
 axes = plt.gca()
 plt.plot(np.arange(-1, 3), np.zeros(4), color = 'black', linewidth = 1)
 axes.set_xlim([min(Alpha), 1])
 axes.set_ylim([min(R), max(R)])
-plt.minorticks_on()
 plt.savefig(figurepath + 'r-alpha-rg.eps')
-
-
-
 
 
 ###############################################################################
@@ -462,44 +459,18 @@ CDF_raw = np.array([quas.cdf(z, Z, L_raw, Lmin_raw) for z in Z_cdf])
 # In[]: Attempts to fit CDF
 
 # CDF log-log fit
-incr = [j for j in range(0, len(Z_cdf) - 10) if Z_cdf[j] != Z_cdf[j + 1]] #start at 1 for optical
-#incr.append(-2)
+incr = [j for j in range(0, len(Z_cdf) - 7) if Z_cdf[j] != Z_cdf[j + 1]] #start at 1 for optical
 Zfit = Z_cdf[incr]
 CDFfit = CDF[incr]
 Nfit = N[incr]
-
-#w = np.hstack((np.zeros(5) + 30., np.zeros(20) + 0., np.zeros(20) + 5, np.zeros(len(Zfit) - 45) + 20)) # first 10 at weight 0.5 for optical
-
-'''
-f = interp.splrep(np.log10(1 + Zfit), np.log10(CDFfit), w, k = 3, s = 10)
-fit = lambda x: interp.splev(x, f)
-dfit = lambda x: interp.splev(x, f, der = 1)
-'''
-
-'''
-p = poly.polyfit(np.log10(1 + Zfit), np.log10(CDFfit), 7, w = w)
-fit = lambda x: poly.polyval(x, p)
-dfit = lambda x: poly.polyval(x, poly.polyder(p))
-'''
-
-'''
-def broken_power(x, A, xc, g1, g2):
-    return A * x**g1 / (1 + (x / xc)**g2)
-m = models.SmoothlyBrokenPowerLaw1D(200, 1, 1, 1, 1)
-f = fitting.LevMarLSQFitter()
-fit = f(m, Zfit, CDFfit)
-dfit = lambda x: scipy.misc.derivative(fit, x, dx = 0.005)
-'''
+w = np.hstack((np.zeros(5) + 3., np.zeros(20) + .5, np.zeros(20) + .5, np.zeros(len(Zfit) - 45) + 2)) # first 10 at weight 0.5 for optical
 
 # regular fit:
-
-fit = interp.UnivariateSpline(Zfit, CDFfit, k = 3, s = 10000)
+fit = interp.UnivariateSpline(Zfit, CDFfit, k = 3, s = 30000, w = w)
 dfit = fit.derivative()
-
 
 fitN = interp.UnivariateSpline(Zfit, Nfit, k = 3, s = 1000)
 dfitN = fitN.derivative()
-
 
 '''
 def broken_power(x, A, xc, g1, g2):
@@ -520,11 +491,10 @@ plt.figure()
 plt.loglog(Z_cdf, CDF, '.',)
 plt.loglog(Z_cdf, N, '.', Z_cdf, CDF_raw)
 #plt.loglog(Zcurve, 10**fit(logZcurve)) #log log fit
-plt.title(r"Cumulative Density Function $\log(\sigma(z))$ for $L_{" + b.name + '}$')
+plt.title(r"Cumulative Density Function $\log(\sigma(z))$ for $L_{" + b.name + '}$', )
 plt.xlabel(r"$z$")
 #plt.xlabel(r"$Z = 1 + z$")
 plt.ylabel(r"$\sigma$")
-plt.minorticks_on()
 plt.savefig(figurepath + '/CDF-N-' + b.name + '.eps')
 
 # non log-log CDF plot
@@ -536,7 +506,6 @@ plt.plot(Zcurve, fit(Zcurve)) # regular fit
 plt.plot(Zcurve, fitN(Zcurve))
 plt.xlabel(r"$z$")
 plt.ylabel(r"$\sigma(z)$")
-plt.minorticks_on()
 
 def loglogdevolution(z):
     Z = 1 + z
@@ -556,15 +525,13 @@ plt.plot(Zfit, dsigma_dz, '.')
 plt.plot(Zfit, dN_dz, '.')
 plt.title(r"$ \frac{d \sigma}{dz}$ and $\frac{d N}{dz}$")
 plt.xlabel(r"$z$")
-plt.minorticks_on()
 plt.savefig(figurepath + '/ds-dz-' + b.name + '.eps')
 
-plt.figure()
-plt.plot(Zfit, rho, '.')
+plt.figure(figsize = (8,6))
+plt.plot(Zfit[1:-5], rho[1:-5], '.', markersize = 7, color = 'black')
 plt.title(r"Density Evolution $\rho(z)$ for $L_{" + b.name + "}$'")
 plt.xlabel(r"$z$")
 plt.ylabel(r"$\rho(z)$")
-plt.minorticks_on()
 plt.savefig(figurepath + '/rho-' + b.name + '.eps')
 
 '''
@@ -581,7 +548,7 @@ x = lambda l: 0.0 if l == 0.0 else np.interp(np.log10(l),
 Zmax_local = np.array([x(l) for l in L])
 
 CLF = np.array([quas.clf(l, fsrq.Z[i], L, Zmax_local) for l in L])
-#    CLF= CLF / CLF[0] # NORMALIZE
+CLF= CLF / CLF[0] # NORMALIZE
 N = np.array([quas.N_L(l, fsrq.Z[i], L) for l in L])
 N_raw = np.array([quas.N_L(l, fsrq.Z[i], L_raw) for l in L_raw])
 CLF_raw = np.array([quas.clf(l, fsrq.Z[i], L_raw, Zmax) for l in L_raw])
@@ -592,7 +559,6 @@ plt.loglog(L, CLF, '.', L, N, '.')
 plt.title(r"Cumulative Luminosity Function $\Phi(L)$ and $N$ for $L_{" + b.name + "}'$")
 plt.xlabel(r"$L_{" + b.name + '}$')
 plt.ylabel(r"$\Phi(L_{" + b.name + '})$')
-plt.minorticks_on()
 
 Lfit = L[np.argsort(L)][2:]
 CLFfit = CLF[np.argsort(L)][2:]
@@ -613,11 +579,11 @@ plt.savefig(figurepath + '/CLF' + b.name + '.eps')
 LF = np.array([- 10**fit(np.log10(l)) * dfit(np.log10(l)) / l for l in Lfit])
 plt.figure()
 plt.loglog(Lfit[3:], LF[3:], '.')
-plt.title(r"Luminosity Function $\psi(L)$ for $L_{" + b.name + '}$')
+#plt.title(r"Luminosity Function $\psi(L)$ for $L_{" + b.name + '}$')
+plt.title(r"$\gamma$-ray Luminosity function $\psi(L'_{\gamma})$")
 plt.xlabel(r"$L_{" + b.name + '}$')
 plt.ylabel(r"$\psi(L_{" + b.name + '})$')
 plt.savefig(figurepath + '/LF' + b.name + '.eps')
-plt.minorticks_on()
     
 
 # In[]: compare LF with Ajello and Singal:
@@ -627,8 +593,13 @@ LF_singal = [2e-7, 1e-7, 9e-8, 2.5e-8, 1.5e-8, 5e-9, 1e-9, 3e-10]
 L_ajello = [6e45, 1e46, 2e46, 3e46, 6e46]
 LF_ajello = [2e-8, 5e-9, 3e-9, 5e-10, 3e-10]    
 
-plt.figure()
-plt.loglog(L_singal, LF_singal, '.', L_ajello, LF_ajello, Lfit[7:-1], 10**36.5*LF[7:-1], '.')
+plt.figure(figsize = (8,6))
+plt.loglog(L_singal, LF_singal, 'rs', L_ajello, LF_ajello, 'ro', markersize = 12)
+plt.loglog(Lfit[7:-1], 10**39.5*LF[7:-1], '.', color = 'black', markersize = 12)
+plt.title(r"$\gamma$-ray Luminosity function $\psi(L'_{\gamma})$", fontsize = 20)
+plt.xlabel(r"$L_{" + b.name + '}$', fontsize = 20)
+plt.ylabel(r"$\psi(L_{" + b.name + '})$', fontsize = 20)
+plt.savefig(figurepath + '/LF' + b.name + '_compare.eps')
 
 # In[]: Various troubleshooting
 
@@ -636,22 +607,3 @@ plt.figure()
 plt.loglog((Z_zmax[0:500]), [quas.dV_dz(z) for z in Z_zmax[0:500]], '.')
 plt.plot()
 plt.title(r'$\frac{dV}{dz}$ vs. $z$')
-
-plt.figure()
-plt.semilogx(Fg, Gamma, '.')
-#plt.gca().set_xlim([10-12, -8.7])
-#plt.gca().set_ylim([1, 3.5])
-
-
-#plt.figure()
-#i = np.where((o_band.L != 0) & (g_band.L != 0))
-#plt.plot(np.log10(o_band.L[i]), np.log10(g_band.L[i]), '.')
-#plt.gca().set_xlim([0, 10])
-
-plt.figure()
-plt.plot(Zfit[2:], rho4[2:], 'b.', Zfit[2:], rho5[2:], 'r.')
-plt.title(r'$\rho(z)$, blue: k = 4, red: k = 5.5')
-
-plt.figure()
-plt.loglog(Lfit[2:], LF4[2:], 'b.', Lfit[2:], LF5[2:], 'r.')
-plt.title(r'$\psi(z)$, blue: k = 4, red: k = 5.5')

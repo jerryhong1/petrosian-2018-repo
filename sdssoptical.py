@@ -14,8 +14,7 @@ from matplotlib import rc
 import quasars as quas
 from quasars import Band
 from quasars import QuasarData
-plt.rc('text', usetex=True)
-plt.rc('font', family='serif')
+plt.style.use('mystyle.mplstyle')
 
 # In[2]: upload .fit file
 dataset = fits.open('dr7qso.fit')

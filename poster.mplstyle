@@ -1,0 +1,23 @@
+#Author: Jerry Hong
+
+legend.fancybox: true
+text.usetex: true
+
+figure.figsize: 8, 5
+
+xtick.top: true
+xtick.minor.visible: true
+xtick.direction: in
+ytick.right: true
+ytick.minor.visible: true
+ytick.direction: in
+
+font.size: 20.0
+font.family: serif
+
+errorbar.capsize: 2
+
+lines.linewidth: 3
+lines.markersize: 10
+
+savefig.pad_inches: 0.1

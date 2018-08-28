@@ -9,8 +9,7 @@ import numpy as np
 import quasars as quas
 from quasars import QuasarData, Band
 import matplotlib.pyplot as plt
-plt.rc('text', usetex=True)
-plt.rc('font', family='serif')
+plt.style.use('mystyle.mplstyle')
 
 names = [] # 3FGL names
 cnames = [] #companion name

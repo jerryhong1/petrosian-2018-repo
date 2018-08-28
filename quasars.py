@@ -202,8 +202,8 @@ class QuasarData:
         
         plt.figure()
         plt.plot(np.log10(L_l1), np.log10(L_l2), '.', markersize = 2)
-        plt.xlabel(r'$L_' + band1.name + '$')
-        plt.ylabel(r'$L_' + band2.name + '$')
+        plt.xlabel(r'$L_{' + band1.name + '}$')
+        plt.ylabel(r'$L_{' + band2.name + '}$')
         
         Alpha = np.arange(0,1,0.005)
         R = rvsalpha(L_l1, L_l2, Alpha)
@@ -295,10 +295,10 @@ def magtoflux(m,f0):
 #Band to band conversion (SDSS bands): all wavelengths reported in angstroms
 alpha_opt = -0.5    
 alpha_rad = -0.6
+lambda_opt = 2500.
 lambda_v = 5510. 
 lambda_r = 6231.
 lambda_i = 7625
-lambda_opt = 2500.
 
 
 # alpha defined as F \propto \nu^\alpha 
@@ -322,7 +322,10 @@ K = [float(k) for k in K]
 def kcorrect(z, alpha):
     return (1 + z)**(1 + alpha)
 
-def kcorrect_opt(z): #with sign convention: m_intrinsic = m_obs - K, and L = 4 pi d^2 f/k(z)
+kcorrect_rad = lambda z: (1 + z)**(1 + alpha_rad)
+kcorrect_opt = lambda z: (1 + z)**(1 + alpha_opt)
+
+def kcorrect_SDSS(z): #with sign convention: m_intrinsic = m_obs - K, and L = 4 pi d^2 f/k(z)
     k_avg = -2.5 * (1 + alpha_opt) * math.log10(1 + z)
     if (z > max(Z_k)):
         k = k_avg  #assume no emission line effect
