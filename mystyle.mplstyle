@@ -16,3 +16,7 @@ font.size: 14.0
 font.family: serif
 
 errorbar.capsize: 2
+
+lines.linewidth: 1.5
+lines.markersize: 4
+

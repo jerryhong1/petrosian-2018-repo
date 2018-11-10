@@ -365,11 +365,11 @@ def tau(Z, L, Lmin):
 #Local Luminosity creation, given k:
 #g(z) such that L' = L/g(z). 
 # Taken from Singal et al. (2013); considers high-redshift objects.
-def g(z, k):
+def g_(z, k):
     z_cr = 3.7
     return (1 + z)**k /(1 + ((1 + z) / z_cr)**k)
 
-def g_(z, k):
+def g(z, k):
     return (1 + z)**k
 
 

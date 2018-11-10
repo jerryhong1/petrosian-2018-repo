@@ -386,7 +386,7 @@ for b in [fsrq.bands[0]]: #just gamma
     k_err = [np.interp(i, -Taus, Ks) for i in sigma]
     plt.text(k_g + 0.01, 0.1, r"$k_{" + b.name + "} = " + str(round(k_g, 2)) 
         + '^{ + ' + str(round(k_err[1] - k_g, 2)) + '}_{' + str(round(k_err[0] - k_g, 2)) + '}$' ,
-        color = 'red', fontsize = 24)
+        color = 'red', fontsize = 32)
     plt.plot([k_err[0], k_err[0]], [-4, 1], '--', color = 'red', linewidth = 0.5)
     plt.plot([k_err[1], k_err[1]], [-4, -1], '--', color = 'red', linewidth = 0.5)
     
@@ -397,15 +397,15 @@ for b in [fsrq.bands[0]]: #just gamma
 o_band.set_k(3.5)
 Alpha, R = fsrq.rvsalpha(o_band, g_band)
 
-plt.figure(figsize = (5,5))
-plt.plot(Alpha, R, color = 'black', linewidth = 1)
+plt.figure(figsize = (6,6))
+plt.plot(Alpha, R, color = 'black')
 alpha = np.interp(0, -np.array(R), Alpha)
 plt.plot([alpha, alpha], [-4, 0], color = 'red', linewidth = 1)
 plt.ylabel(r"Correlation Coefficient")
 plt.xlabel(r"$\alpha$")
 #plt.title(r"Correlation of $L_{cr}^{\prime\; \gamma} = L_{\gamma}'(L_0/L_{opt}')^\alpha$ vs. $L_{opt}'$")
 plt.title(r"Gamma-Optical Correlation", fontsize = 20) # for poster
-plt.text(alpha + 0.02, 0.01, r"$\alpha = $ " + str(round(alpha, 2)), color = 'red', fontsize = 30)
+plt.text(alpha + 0.02, 0.01, r"$\alpha = $ " + str(round(alpha, 2)), color = 'red', fontsize = 45)
 
 axes = plt.gca()
 plt.plot(np.arange(-1, 3), np.zeros(4), color = 'black', linewidth = 1)
@@ -415,15 +415,15 @@ plt.savefig(figurepath + 'r-alpha-og.eps')
 
 
 Alpha, R = Alpha_rg, R_rg
-plt.figure(figsize = (5,5))
-plt.plot(Alpha, R, color = 'black', linewidth = 1)
+plt.figure(figsize = (6,6))
+plt.plot(Alpha, R, color = 'black')
 alpha = np.interp(0, -np.array(R), Alpha)
 plt.plot([alpha, alpha], [-4, 0], color = 'red', linewidth = 1)
 plt.ylabel(r"Correlation Coefficient")
 plt.xlabel(r"$\alpha$")
 #plt.title(r"Correlation of $L_{cr}^{\prime\; \gamma} = L_{\gamma}'(L_0/L_{rad}')^\alpha$ vs. $L_{rad}'$")
 plt.title(r"Gamma-Radio Correlation", fontsize = 20) # for poster
-plt.text(alpha + 0.02, 0.01, r"$\alpha = $ " + str(round(alpha, 2)), color = 'red', fontsize = 30)
+plt.text(alpha + 0.02, 0.01, r"$\alpha = $ " + str(round(alpha, 2)), color = 'red', fontsize = 45)
 
 axes = plt.gca()
 plt.plot(np.arange(-1, 3), np.zeros(4), color = 'black', linewidth = 1)
@@ -524,11 +524,13 @@ plt.figure()
 plt.plot(Zfit, dsigma_dz, '.')
 plt.plot(Zfit, dN_dz, '.')
 plt.title(r"$ \frac{d \sigma}{dz}$ and $\frac{d N}{dz}$")
+plt.plot()
 plt.xlabel(r"$z$")
 plt.savefig(figurepath + '/ds-dz-' + b.name + '.eps')
 
-plt.figure(figsize = (8,6))
-plt.plot(Zfit[1:-5], rho[1:-5], '.', markersize = 7, color = 'black')
+plt.figure()
+plt.plot(Zfit[1:-8], rho[1:-8], '.', markersize = 10, color = 'black')
+plt.plot(Z_opt[1:30], rho_opt[1:30]*10**(-0.7), '.', markersize = 10, color = '#707070')
 plt.title(r"Density Evolution $\rho(z)$ for $L_{" + b.name + "}$'")
 plt.xlabel(r"$z$")
 plt.ylabel(r"$\rho(z)$")

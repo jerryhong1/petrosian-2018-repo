@@ -7,7 +7,8 @@ import quasars as quas
 from quasars import Band, QuasarData
 import scipy.interpolate as interp
 import matplotlib.pyplot as plt
-plt.style.use('mystyle.mplstyle')
+#plt.style.use('mystyle.mplstyle')
+plt.style.use('poster.mplstyle')
 
 # In[1]: import file and put into QuasarData anLarad band objects.
 file = open("SDSSFIRSTComplete.dat","r") 
@@ -157,8 +158,8 @@ for b in sdssfirst.bands:
     axes = plt.gca()
     axes.set_xlim([min(K), max(K)])
     axes.set_ylim([-3,3])
-    plt.xlabel(r"$k_{" + b.name + "}$", fontsize = 14)
-    plt.ylabel(r"$\tau$", fontsize = 14)
+    plt.xlabel(r"$k_{" + b.name + "}$")
+    plt.ylabel(r"$\tau$")
     
     plt.plot(np.arange(0, 10), np.zeros(10), color = 'black')
     plt.plot(np.arange(0, 10), np.zeros(10) + 1, '--', color = 'black', linewidth=1)
@@ -168,7 +169,7 @@ for b in sdssfirst.bands:
     k_err = [np.interp(i, -Tau, K) for i in sigma]
     plt.text(k + 0.01, 0.1, r"$k_{" + b.name + "} = " + str(round(k, 2)) 
         + '^{ + ' + str(round(k_err[1] - k, 2)) + '}_{' + str(round(k_err[0] - k, 2)) + '}$' ,
-        color = 'red', fontsize = 24)
+        color = 'red', fontsize = 32)
     plt.plot([k_err[0], k_err[0]], [-4, 1], '--', color = 'red', linewidth = 0.5)
     plt.plot([k_err[1], k_err[1]], [-4, -1], '--', color = 'red', linewidth = 0.5)
     
